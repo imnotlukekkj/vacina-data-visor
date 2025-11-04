@@ -4,26 +4,25 @@ const BASE_API_URL = import.meta.env.VITE_BASE_API_URL || "http://localhost:8000
 
 export interface OverviewData {
   total_doses: number;
-  total_aplicadas: number;
-  total_estoque: number;
-  taxa_aplicacao: number;
   periodo?: string;
 }
 
 export interface TimeseriesDataPoint {
   data: string;
   doses_distribuidas: number;
-  doses_aplicadas: number;
-  doses_estoque: number;
 }
 
 export interface RankingUF {
   uf: string;
   sigla: string;
   doses_distribuidas: number;
-  doses_aplicadas: number;
-  doses_estoque: number;
-  taxa_aplicacao: number;
+}
+
+export interface ForecastDataPoint {
+  data: string;
+  doses_previstas: number;
+  intervalo_inferior?: number;
+  intervalo_superior?: number;
 }
 
 export interface FilterParams {
@@ -73,6 +72,15 @@ class APIClient {
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Erro ao buscar ranking: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getForecast(params?: FilterParams): Promise<ForecastDataPoint[]> {
+    const url = this.buildURL("/forecast", params);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Erro ao buscar previsão: ${response.statusText}`);
     }
     return response.json();
   }

@@ -8,8 +8,6 @@ interface BrazilMapProps {
     uf: string;
     sigla: string;
     doses_distribuidas: number;
-    doses_aplicadas: number;
-    taxa_aplicacao: number;
   }>;
   loading: boolean;
 }

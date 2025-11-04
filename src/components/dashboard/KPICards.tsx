@@ -5,9 +5,6 @@ import { motion } from "framer-motion";
 interface KPICardsProps {
   data: {
     total_doses: number;
-    total_aplicadas: number;
-    total_estoque: number;
-    taxa_aplicacao: number;
   } | null;
   loading: boolean;
 }
@@ -25,50 +22,26 @@ const KPICards = ({ data, loading }: KPICardsProps) => {
       color: "text-primary",
       bgColor: "bg-primary/10",
     },
-    {
-      title: "Doses Aplicadas",
-      value: data?.total_aplicadas || 0,
-      icon: Syringe,
-      color: "text-secondary",
-      bgColor: "bg-secondary/10",
-    },
-    {
-      title: "Doses em Estoque",
-      value: data?.total_estoque || 0,
-      icon: Activity,
-      color: "text-accent",
-      bgColor: "bg-accent/10",
-    },
-    {
-      title: "Taxa de Aplicação",
-      value: data?.taxa_aplicacao || 0,
-      icon: TrendingUp,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-      isPercentage: true,
-    },
   ];
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {[...Array(4)].map((_, i) => (
-          <Card key={i} className="animate-pulse">
-            <CardHeader className="pb-2">
-              <div className="h-4 bg-muted rounded w-24"></div>
-            </CardHeader>
-            <CardContent>
-              <div className="h-8 bg-muted rounded w-32 mb-2"></div>
-              <div className="h-10 bg-muted rounded-full w-10"></div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-1 gap-6">
+        <Card className="animate-pulse">
+          <CardHeader className="pb-2">
+            <div className="h-4 bg-muted rounded w-24"></div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-8 bg-muted rounded w-32 mb-2"></div>
+            <div className="h-10 bg-muted rounded-full w-10"></div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 gap-6">
       {kpis.map((kpi, index) => (
         <motion.div
           key={kpi.title}
@@ -86,9 +59,7 @@ const KPICards = ({ data, loading }: KPICardsProps) => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-3xl font-bold text-foreground">
-                    {kpi.isPercentage 
-                      ? `${kpi.value.toFixed(1)}%` 
-                      : formatNumber(kpi.value)}
+                    {formatNumber(kpi.value)}
                   </p>
                 </div>
                 <div className={`${kpi.bgColor} p-3 rounded-full`}>

@@ -6,8 +6,6 @@ interface TimeseriesChartProps {
   data: Array<{
     data: string;
     doses_distribuidas: number;
-    doses_aplicadas: number;
-    doses_estoque: number;
   }>;
   loading: boolean;
 }
@@ -54,7 +52,7 @@ const TimeseriesChart = ({ data, loading }: TimeseriesChartProps) => {
       <Card>
         <CardHeader>
           <CardTitle>Série Temporal</CardTitle>
-          <CardDescription>Evolução de doses distribuídas, aplicadas e em estoque</CardDescription>
+          <CardDescription>Evolução de doses distribuídas ao longo do tempo</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={400}>
@@ -81,25 +79,9 @@ const TimeseriesChart = ({ data, loading }: TimeseriesChartProps) => {
                 type="monotone" 
                 dataKey="doses_distribuidas" 
                 stroke="hsl(var(--primary))" 
-                strokeWidth={2}
-                name="Distribuídas"
-                dot={{ fill: "hsl(var(--primary))" }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="doses_aplicadas" 
-                stroke="hsl(var(--secondary))" 
-                strokeWidth={2}
-                name="Aplicadas"
-                dot={{ fill: "hsl(var(--secondary))" }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="doses_estoque" 
-                stroke="hsl(var(--accent))" 
-                strokeWidth={2}
-                name="Estoque"
-                dot={{ fill: "hsl(var(--accent))" }}
+                strokeWidth={3}
+                name="Doses Distribuídas"
+                dot={{ fill: "hsl(var(--primary))", r: 4 }}
               />
             </LineChart>
           </ResponsiveContainer>

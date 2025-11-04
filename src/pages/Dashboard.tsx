@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Activity, AlertCircle, Info } from "lucide-react";
 import { useFilterStore } from "@/stores/filterStore";
-import { apiClient, OverviewData, TimeseriesDataPoint, RankingUF } from "@/lib/api";
+import { apiClient, OverviewData, TimeseriesDataPoint, RankingUF, ForecastDataPoint } from "@/lib/api";
 import FilterSection from "@/components/dashboard/FilterSection";
 import KPICards from "@/components/dashboard/KPICards";
 import TimeseriesChart from "@/components/dashboard/TimeseriesChart";
 import BrazilMap from "@/components/dashboard/BrazilMap";
+import ForecastChart from "@/components/dashboard/ForecastChart";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { motion } from "framer-motion";
 
@@ -17,10 +18,12 @@ const Dashboard = () => {
   const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
   const [timeseriesData, setTimeseriesData] = useState<TimeseriesDataPoint[]>([]);
   const [rankingData, setRankingData] = useState<RankingUF[]>([]);
+  const [forecastData, setForecastData] = useState<ForecastDataPoint[]>([]);
   
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [loadingTimeseries, setLoadingTimeseries] = useState(false);
   const [loadingRanking, setLoadingRanking] = useState(false);
+  const [loadingForecast, setLoadingForecast] = useState(false);
   
   const [error, setError] = useState<string | null>(null);
 
@@ -61,6 +64,17 @@ const Dashboard = () => {
         console.error(err);
       } finally {
         setLoadingRanking(false);
+      }
+
+      // Fetch Forecast
+      setLoadingForecast(true);
+      try {
+        const forecast = await apiClient.getForecast(params);
+        setForecastData(forecast);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingForecast(false);
       }
     };
 
@@ -126,6 +140,9 @@ const Dashboard = () => {
           <TimeseriesChart data={timeseriesData} loading={loadingTimeseries} />
           <BrazilMap data={rankingData} loading={loadingRanking} />
         </div>
+
+        {/* Forecast */}
+        <ForecastChart data={forecastData} loading={loadingForecast} />
       </main>
     </div>
   );
