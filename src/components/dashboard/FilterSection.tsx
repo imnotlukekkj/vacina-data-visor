@@ -69,12 +69,12 @@ const FilterSection = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-2">
             <Label htmlFor="ano">Ano</Label>
-            <Select value={ano} onValueChange={setAno}>
+            <Select value={ano || "all"} onValueChange={(v) => setAno(v === "all" ? "" : v)}>
               <SelectTrigger id="ano">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 {ANOS.map((a) => (
                   <SelectItem key={a} value={a}>{a}</SelectItem>
                 ))}
@@ -84,12 +84,12 @@ const FilterSection = () => {
 
           <div className="space-y-2">
             <Label htmlFor="mes">Mês</Label>
-            <Select value={mes} onValueChange={setMes}>
+            <Select value={mes || "all"} onValueChange={(v) => setMes(v === "all" ? "" : v)}>
               <SelectTrigger id="mes">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 {MESES.map((m) => (
                   <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
                 ))}
@@ -99,12 +99,12 @@ const FilterSection = () => {
 
           <div className="space-y-2">
             <Label htmlFor="uf">UF</Label>
-            <Select value={uf} onValueChange={setUF}>
+            <Select value={uf || "all"} onValueChange={(v) => setUF(v === "all" ? "" : v)}>
               <SelectTrigger id="uf">
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas</SelectItem>
+                <SelectItem value="all">Todas</SelectItem>
                 {UFS.map((u) => (
                   <SelectItem key={u} value={u}>{u}</SelectItem>
                 ))}
@@ -114,12 +114,12 @@ const FilterSection = () => {
 
           <div className="space-y-2">
             <Label htmlFor="insumo">Insumo</Label>
-            <Select value={insumo} onValueChange={setInsumo}>
+            <Select value={insumo || "all"} onValueChange={(v) => setInsumo(v === "all" ? "" : v)}>
               <SelectTrigger id="insumo">
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 {INSUMOS.map((i) => (
                   <SelectItem key={i} value={i}>{i}</SelectItem>
                 ))}
