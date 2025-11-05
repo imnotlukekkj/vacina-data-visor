@@ -13,7 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { motion } from "framer-motion";
 
 const Dashboard = () => {
-  const { ano, mes, uf, insumo, getAPIParams } = useFilterStore();
+  const { ano, mes, uf, vacina, getAPIParams } = useFilterStore();
   
   const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
   const [timeseriesData, setTimeseriesData] = useState<TimeseriesDataPoint[]>([]);
@@ -79,7 +79,7 @@ const Dashboard = () => {
     };
 
     fetchData();
-  }, [ano, mes, uf, insumo]);
+  }, [ano, mes, uf, vacina]);
 
   return (
     <div className="min-h-screen bg-background">

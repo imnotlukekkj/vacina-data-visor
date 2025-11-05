@@ -27,23 +27,41 @@ const UFS = [
   "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", 
   "SP", "SE", "TO"
 ];
-const INSUMOS = ["Pfizer", "CoronaVac", "AstraZeneca", "Janssen", "Moderna"];
+const VACINAS = [
+  "Poliomielite",
+  "BCG",
+  "Rotavírus",
+  "Pneumocócica Conjugada 13 Valente",
+  "Hepatite B",
+  "Covid-19",
+  "Soro Anti-Rábico Humano",
+  "Febre Amarela",
+  "Pneumocócica",
+  "Tetra Viral",
+  "Varicela",
+  "Dupla Adulto",
+  "Tríplice Viral",
+  "Imunoglobulina Humana Anti-Hepatite B",
+  "Soro Anticrotálico",
+  "HPV",
+  "Pentavalente"
+];
 
 const FilterSection = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { ano, mes, uf, insumo, setAno, setMes, setUF, setInsumo, clearFilters } = useFilterStore();
+  const { ano, mes, uf, vacina, setAno, setMes, setUF, setVacina, clearFilters } = useFilterStore();
 
   // Sincroniza URL com store
   useEffect(() => {
     const anoParam = searchParams.get("ano");
     const mesParam = searchParams.get("mes");
     const ufParam = searchParams.get("uf");
-    const insumoParam = searchParams.get("insumo");
+    const vacinaParam = searchParams.get("vacina");
 
     if (anoParam) setAno(anoParam);
     if (mesParam) setMes(mesParam);
     if (ufParam) setUF(ufParam);
-    if (insumoParam) setInsumo(insumoParam);
+    if (vacinaParam) setVacina(vacinaParam);
   }, []);
 
   // Atualiza URL quando filtros mudam
@@ -52,16 +70,16 @@ const FilterSection = () => {
     if (ano) params.set("ano", ano);
     if (mes) params.set("mes", mes);
     if (uf) params.set("uf", uf);
-    if (insumo) params.set("insumo", insumo);
+    if (vacina) params.set("vacina", vacina);
     setSearchParams(params);
-  }, [ano, mes, uf, insumo, setSearchParams]);
+  }, [ano, mes, uf, vacina, setSearchParams]);
 
   const handleClearFilters = () => {
     clearFilters();
     setSearchParams(new URLSearchParams());
   };
 
-  const hasFilters = ano || mes || uf || insumo;
+  const hasFilters = ano || mes || uf || vacina;
 
   return (
     <Card>
@@ -113,14 +131,14 @@ const FilterSection = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="insumo">Insumo</Label>
-            <Select value={insumo || "all"} onValueChange={(v) => setInsumo(v === "all" ? "" : v)}>
-              <SelectTrigger id="insumo">
-                <SelectValue placeholder="Todos" />
+            <Label htmlFor="vacina">Vacina</Label>
+            <Select value={vacina || "all"} onValueChange={(v) => setVacina(v === "all" ? "" : v)}>
+              <SelectTrigger id="vacina">
+                <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {INSUMOS.map((i) => (
+                <SelectItem value="all">Todas</SelectItem>
+                {VACINAS.map((i) => (
                   <SelectItem key={i} value={i}>{i}</SelectItem>
                 ))}
               </SelectContent>

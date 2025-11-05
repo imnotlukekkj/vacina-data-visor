@@ -9,7 +9,7 @@ Este projeto acadêmico oferece uma interface moderna para acompanhamento em tem
 - **KPIs em tempo real**: Doses distribuídas, aplicadas, estoque e taxa de aplicação
 - **Série temporal interativa**: Evolução das doses ao longo do tempo
 - **Mapa do Brasil**: Visualização geográfica por UF
-- **Filtros dinâmicos**: Ano, mês, UF e fabricante/insumo
+-- **Filtros dinâmicos**: Ano, mês, UF e fabricante/vacina
 - **Design responsivo**: Funciona perfeitamente em desktop, tablet e mobile
 
 ## 🚀 Stack Tecnológica
@@ -104,7 +104,7 @@ Retorna dados agregados por UF.
 
 ### Importante: Conversão de Parâmetros
 
-O frontend usa o termo **"insumo"** na interface, mas envia como **"fabricante"** para a API. Esta conversão é feita automaticamente no cliente.
+O frontend exibe o filtro como **"Vacina"** (para facilitar a seleção do tipo de vacina), mas envia o valor como **"fabricante"** para a API. Esta conversão é feita automaticamente no cliente.
 
 ## 🏃 Executando o Projeto
 
@@ -159,7 +159,7 @@ Os filtros do dashboard são:
 - Persistidos no estado global com Zustand
 - Atualizados em tempo real em todos os componentes
 
-Exemplo de URL: `/dashboard?ano=2024&mes=01&uf=SP&insumo=Pfizer`
+Exemplo de URL: `/dashboard?ano=2024&mes=01&uf=SP&vacina=Pfizer` (o frontend agora envia `vacina`; o backend ainda aceita `fabricante` como parâmetro para compatibilidade)
 
 ## 🧪 Desenvolvimento
 
