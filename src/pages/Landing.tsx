@@ -15,14 +15,11 @@ const Landing = () => {
             className="flex items-center gap-2"
           >
             <Activity className="h-8 w-8 text-primary" />
-            <h1 className="text-xl font-bold text-foreground">VacinaBrasil</h1>
+            <h1 className="text-xl font-bold text-foreground">Vacina Brasil</h1>
           </motion.div>
           <nav className="flex gap-4 items-center">
             <Link to="/sobre" className="text-muted-foreground hover:text-foreground transition-colors">
               Sobre
-            </Link>
-            <Link to="/dashboard">
-              <Button variant="outline">Entrar no Sistema</Button>
             </Link>
           </nav>
         </div>

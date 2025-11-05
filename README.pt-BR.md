@@ -1,4 +1,4 @@
-# 🩺 VacinaBrasil - Dashboard Nacional de Distribuição de Vacinas
+# 🩺 Vacina Brasil - Dashboard Nacional de Distribuição de Vacinas
 
 Dashboard interativo e responsivo para visualização e análise de dados oficiais de distribuição e aplicação de vacinas em todo o território nacional.
 
