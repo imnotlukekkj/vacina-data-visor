@@ -114,6 +114,24 @@ class APIClient {
     return response.json();
   }
 
+  async getComparacao(params: { insumo_nome: string; ano?: number | string; uf?: string; mes?: number | string }) {
+    const url = new URL("/api/previsao/comparacao", this.baseURL);
+    url.searchParams.append("insumo_nome", params.insumo_nome);
+    if (params.ano !== undefined && params.ano !== null) url.searchParams.append("ano", String(params.ano));
+    if (params.uf) url.searchParams.append("uf", String(params.uf));
+    if (params.mes !== undefined && params.mes !== null) url.searchParams.append("mes", String(params.mes));
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      const txt = await response.text();
+      const err: any = new Error(`Erro ao buscar /api/previsao/comparacao: ${response.status} ${txt}`);
+      err.status = response.status;
+      err.body = txt;
+      throw err;
+    }
+    return response.json();
+  }
+
   async getVacinas(): Promise<string[]> {
     const url = new URL("/mappings", this.baseURL).toString();
     const response = await fetch(url);

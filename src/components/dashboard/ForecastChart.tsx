@@ -20,19 +20,20 @@ interface ForecastChartProps {
 const ForecastChart = ({ data, loading, filtersSelected = false }: ForecastChartProps) => {
   const numberFmt = useMemo(() => new Intl.NumberFormat("pt-BR"), []);
 
+
   const chartData = useMemo(() => {
     if (!data) return [];
     const base = data.map((d) => ({
       ...d,
       ci_range:
-        d.intervalo_superior !== undefined && d.intervalo_inferior !== undefined
-          ? Math.max(0, d.intervalo_superior - d.intervalo_inferior)
+        (d as any).intervalo_superior !== undefined && (d as any).intervalo_inferior !== undefined
+          ? Math.max(0, (d as any).intervalo_superior - (d as any).intervalo_inferior)
           : undefined,
     }));
 
     // if there's only one meaningful point, add a small synthetic previous point
     const meaningful = base.filter(
-      (d) => d.doses_previstas !== undefined || (d.intervalo_superior !== undefined && d.intervalo_inferior !== undefined) || (d.doses_historico !== undefined && d.doses_historico !== null) || (d.doses_projecao !== undefined && d.doses_projecao !== null)
+      (d) => (d as any).doses_previstas !== undefined || ((d as any).intervalo_superior !== undefined && (d as any).intervalo_inferior !== undefined) || ((d as any).doses_historico !== undefined && (d as any).doses_historico !== null) || ((d as any).doses_projecao !== undefined && (d as any).doses_projecao !== null)
     );
     if (meaningful.length === 1) {
       const p = meaningful[0];
@@ -56,11 +57,12 @@ const ForecastChart = ({ data, loading, filtersSelected = false }: ForecastChart
   const { yDomain, hasSinglePoint } = useMemo(() => {
     const vals: number[] = [];
     chartData.forEach((d) => {
-      if (d.doses_previstas !== undefined) vals.push(Number(d.doses_previstas));
-      if (d.doses_historico !== undefined && d.doses_historico !== null) vals.push(Number(d.doses_historico));
-      if (d.doses_projecao !== undefined && d.doses_projecao !== null) vals.push(Number(d.doses_projecao));
-      if (d.intervalo_inferior !== undefined) vals.push(Number(d.intervalo_inferior));
-      if (d.intervalo_superior !== undefined) vals.push(Number(d.intervalo_superior));
+      const dd: any = d;
+      if (dd.doses_previstas !== undefined) vals.push(Number(dd.doses_previstas));
+      if (dd.doses_historico !== undefined && dd.doses_historico !== null) vals.push(Number(dd.doses_historico));
+      if (dd.doses_projecao !== undefined && dd.doses_projecao !== null) vals.push(Number(dd.doses_projecao));
+      if (dd.intervalo_inferior !== undefined) vals.push(Number(dd.intervalo_inferior));
+      if (dd.intervalo_superior !== undefined) vals.push(Number(dd.intervalo_superior));
     });
 
     const max = vals.length ? Math.max(...vals) : 0;
@@ -70,7 +72,10 @@ const ForecastChart = ({ data, loading, filtersSelected = false }: ForecastChart
     let domainMax = max;
 
     // If there's only one meaningful value, provide a nicer domain so the point doesn't sit on a flat axis
-    const meaningfulPoints = chartData.filter((d) => (d.doses_previstas !== undefined) || (d.doses_historico !== undefined && d.doses_historico !== null) || (d.doses_projecao !== undefined && d.doses_projecao !== null) || (d.intervalo_superior !== undefined && d.intervalo_inferior !== undefined));
+    const meaningfulPoints = chartData.filter((d) => {
+      const dd: any = d;
+      return (dd.doses_previstas !== undefined) || (dd.doses_historico !== undefined && dd.doses_historico !== null) || (dd.doses_projecao !== undefined && dd.doses_projecao !== null) || (dd.intervalo_superior !== undefined && dd.intervalo_inferior !== undefined);
+    });
     const single = meaningfulPoints.length === 1;
     if (single) {
       // give some headroom (moderate)
@@ -163,6 +168,7 @@ const ForecastChart = ({ data, loading, filtersSelected = false }: ForecastChart
   }
 
   if (!data || data.length === 0) {
+    // show the same 'dados insuficientes' UI for empty/absent data
     return (
       <Card>
         <CardHeader>
@@ -181,6 +187,8 @@ const ForecastChart = ({ data, loading, filtersSelected = false }: ForecastChart
     );
   }
 
+  
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -198,7 +206,7 @@ const ForecastChart = ({ data, loading, filtersSelected = false }: ForecastChart
         <CardContent>
           {/* Provide a persistent caption/legend area (includes synthetic note when applicable) */}
           <div className="mb-3 flex flex-col gap-2">
-            {data && data.length === 1 && String(data[0].data).includes("2025") && (
+            {data && data.length === 1 && String((data as any)[0].data).includes("2025") && (
               <div className="text-sm text-muted-foreground">Apenas previsão para 2025 disponível — sem histórico suficiente para desenhar série completa</div>
             )}
             <div className="flex items-center gap-4 text-sm">

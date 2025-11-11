@@ -8,6 +8,8 @@ import KPICards from "@/components/dashboard/KPICards";
 import TimeseriesChart from "@/components/dashboard/TimeseriesChart";
 import BrazilMap from "@/components/dashboard/BrazilMap";
 import ForecastChart from "@/components/dashboard/ForecastChart";
+import ComparisonChart from "@/components/dashboard/ComparisonChart";
+import ErrorBoundary from "@/components/ui/error-boundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { motion } from "framer-motion";
 
@@ -18,7 +20,7 @@ const Dashboard = (): JSX.Element => {
   const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
   const [timeseriesData, setTimeseriesData] = useState<TimeseriesDataPoint[]>([]);
   const [rankingData, setRankingData] = useState<RankingUF[]>([]);
-  const [forecastData, setForecastData] = useState<ForecastDataPoint[]>([]);
+  const [forecastData, setForecastData] = useState<any[]>([]);
 
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [loadingTimeseries, setLoadingTimeseries] = useState(false);
@@ -78,63 +80,49 @@ const Dashboard = (): JSX.Element => {
       setLoadingForecast(true);
       try {
         const forecast = await apiClient.getForecast(params);
+        // keep existing forecast series from the legacy /forecast endpoint
         let merged = forecast || [];
-        let insufficient = false;
 
+        // if user selected a vacina, call the new comparison endpoint and render a simple bar chart
         if (vacina) {
           try {
-            const resp: any = await apiClient.getPrevisao({ insumo_nome: vacina, uf: uf || undefined, mes: mes || undefined });
+            // endpoint requires ano=2024 per backend validation
+            const resp: any = await apiClient.getComparacao({ insumo_nome: vacina, ano: 2024, uf: uf || undefined, mes: mes || undefined });
 
-            if (Array.isArray(resp)) {
-              const rpcPoints = resp
-                .map((r: any) => {
-                  const ano = r.ano ?? r.year ?? null;
-                  const qtd = r.quantidade ?? r.qtd ?? null;
-                  if (ano == null || qtd == null) return null;
-                  const tipo = (r.tipo_dado ?? r._tipo ?? null) as string | null;
-                  return {
-                    data: String(ano),
-                    doses_historico: tipo === "historico" ? Number(qtd) : null,
-                    doses_projecao: tipo === "previsao" ? Number(qtd) : null,
-                    doses_previstas: Number(qtd),
-                    intervalo_inferior: undefined,
-                    intervalo_superior: undefined,
-                    _tipo: tipo,
-                  };
-                })
-                .filter(Boolean) as any[];
+            // resp.dados_comparacao is expected to be an array like [{ ano: 2024, quantidade: number|null, tipo: 'historico' }, { ano: 2025, quantidade: number|null, tipo: 'projeção' }]
+            if (resp && Array.isArray(resp.dados_comparacao)) {
+              const dados = resp.dados_comparacao;
 
-              const byData: Record<string, any> = {};
-              merged.forEach((m) => (byData[String(m.data)] = m));
-              rpcPoints.forEach((p) => (byData[String(p.data)] = p));
-              merged = Object.values(byData).sort((a: any, b: any) => (String(a.data) > String(b.data) ? 1 : -1));
-            } else if (resp && (resp.previsao_doses != null || resp.ano_previsao)) {
-              const label = resp.ano_previsao ? String(resp.ano_previsao) : (mes ? `2025-${String(mes).padStart(2, "0")}` : "2025");
-              const qtd = Number(resp.previsao_doses || 0);
-              merged = [
-                ...merged,
-                {
-                  data: label,
-                  doses_historico: null,
-                  doses_projecao: qtd,
-                  doses_previstas: qtd,
-                  intervalo_inferior: undefined,
-                  intervalo_superior: undefined,
-                },
-              ];
-            }
-          } catch (err: any) {
-            if (err && err.status === 404) {
-              insufficient = true;
+              // mark insufficient if both quantities are null (backend uses null when no usable data)
+              const q2024 = dados.find((d: any) => Number(d.ano) === 2024)?.quantidade ?? null;
+              const q2025 = dados.find((d: any) => Number(d.ano) === 2025)?.quantidade ?? null;
+              if ((q2024 === null || q2024 === 0) && (q2025 === null || q2025 === 0)) {
+                setForecastData([]);
+                setForecastInsufficient(true);
+              } else {
+                // pass the comparison array directly to the chart component
+                setForecastData(dados as any);
+                setForecastInsufficient(false);
+              }
+            } else {
+              // fallback: no usable comparison data
               setForecastData([]);
               setForecastInsufficient(true);
+            }
+          } catch (err: any) {
+            // bubble up specific statuses if needed
+            if (err && err.status === 400) {
+              // validation error from backend (e.g. ano must be 2024) – surface to user
+              setError(err.body || String(err));
             } else {
-              console.warn("Falha ao chamar /api/previsao:", err);
+              console.warn("Falha ao chamar /api/previsao/comparacao:", err);
+              setForecastData([]);
+              setForecastInsufficient(true);
             }
           }
+        } else {
+          setForecastData(merged);
         }
-
-        if (!insufficient) setForecastData(merged);
       } catch (err) {
         console.error(err);
       } finally {
@@ -198,7 +186,15 @@ const Dashboard = (): JSX.Element => {
           </Alert>
         )}
 
-        <ForecastChart data={forecastData} loading={loadingForecast} filtersSelected={filtersSelected} />
+        {vacina ? (
+          <ErrorBoundary>
+            <ComparisonChart data={forecastData} loading={loadingForecast} />
+          </ErrorBoundary>
+        ) : (
+          <ErrorBoundary>
+            <ForecastChart data={forecastData} loading={loadingForecast} filtersSelected={filtersSelected} />
+          </ErrorBoundary>
+        )}
       </main>
     </div>
   );
