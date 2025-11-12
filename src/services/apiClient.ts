@@ -2,7 +2,8 @@ import { FilterParams, OverviewData, TimeseriesDataPoint, RankingUF, ForecastDat
 
 // API Client para comunicação com backend FastAPI
 
-const BASE_API_URL = import.meta.env.VITE_BASE_API_URL || "http://localhost:8000";
+// Use a variável de ambiente do Vite em produção. Em builds locais defina em .env
+const BASE_API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 class APIClient {
   private baseURL: string;
