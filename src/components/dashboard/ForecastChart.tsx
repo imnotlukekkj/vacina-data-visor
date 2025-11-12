@@ -22,7 +22,7 @@ const ForecastChart = ({ data, loading, filtersSelected = false }: ForecastChart
 
 
   const chartData = useMemo(() => {
-    if (!data) return [];
+    if (!data || !Array.isArray(data)) return [];
     const base = data.map((d) => ({
       ...d,
       ci_range:
@@ -257,6 +257,7 @@ const ForecastChart = ({ data, loading, filtersSelected = false }: ForecastChart
                     fill="transparent"
                     stroke="none"
                     stackId="ci"
+                    key="ci-base-area"
                   />
                   {/* stacked area representing (upper - lower) to create band */}
                   <Area
@@ -265,6 +266,7 @@ const ForecastChart = ({ data, loading, filtersSelected = false }: ForecastChart
                     fill="hsl(var(--primary) / 0.12)"
                     stroke="none"
                     stackId="ci"
+                    key="ci-range-area"
                     name="Intervalo de Confiança"
                   />
                 </>
@@ -278,6 +280,7 @@ const ForecastChart = ({ data, loading, filtersSelected = false }: ForecastChart
                 name="Distribuição Histórica"
                 dot={false}
                 isAnimationActive={false}
+                key="line-historico"
               />
 
               {/* Linha projeção: tracejada */}
@@ -288,25 +291,27 @@ const ForecastChart = ({ data, loading, filtersSelected = false }: ForecastChart
                 strokeWidth={3}
                 strokeDasharray={"5 5"}
                 name="Projeção"
-                dot={(dotProps: any) => {
+                  dot={(dotProps: any) => {
                   const p = dotProps && dotProps.payload;
                   const is2025 = p && String(p.data).includes("2025");
                   const isSynthetic = p && p.synthetic;
                   const cx = dotProps.cx;
                   const cy = dotProps.cy;
+                  const keyId = p ? `dot-${String(p.data)}` : `dot-${cx}-${cy}`;
                   if (is2025) {
                     return (
-                      <g>
-                        <circle cx={cx} cy={cy} r={6} fill="hsl(var(--primary))" stroke="#fff" strokeWidth={2} />
-                        <text x={cx} y={cy - 12} textAnchor="middle" fill="hsl(var(--foreground))" fontSize={12} fontWeight={600}>
+                      <g key={`${keyId}-g`}>
+                        <circle key={`${keyId}-circle`} cx={cx} cy={cy} r={6} fill="hsl(var(--primary))" stroke="#fff" strokeWidth={2} />
+                        <text key={`${keyId}-text`} x={cx} y={cy - 12} textAnchor="middle" fill="hsl(var(--foreground))" fontSize={12} fontWeight={600}>
                           {numberFmt.format(p.doses_projecao ?? p.doses_previstas)}
                         </text>
                       </g>
                     );
                   }
-                  if (isSynthetic) return <circle cx={cx} cy={cy} r={3} fill="hsl(var(--primary))" opacity={0.45} />;
-                  return <circle cx={cx} cy={cy} r={4} fill="hsl(var(--primary))" />;
+                  if (isSynthetic) return <circle key={`${keyId}-synthetic`} cx={cx} cy={cy} r={3} fill="hsl(var(--primary))" opacity={0.45} />;
+                  return <circle key={`${keyId}-normal`} cx={cx} cy={cy} r={4} fill="hsl(var(--primary))" />;
                 }}
+                key="line-projecao"
               />
               {/* message handled above the chart so it doesn't overlap SVG axes */}
             </ComposedChart>

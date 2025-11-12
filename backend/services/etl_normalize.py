@@ -3,7 +3,7 @@
 Script simples para normalizar registros JSON (campo TX_INSUMO) usando os mapeamentos em mappings.json.
 
 Uso:
-  python backend/etl_normalize.py --input data.json --output normalized.json
+    python backend/etl_normalize.py --input data.json --output <output.json>
 
 O script aplica os padrões na ordem de `priority` (menor primeiro). Usa regex case-insensitive.
 """

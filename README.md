@@ -7,97 +7,220 @@
 ## How can I edit this code?
 
 There are several ways of editing your application.
+````markdown
+# 🩺 Vacina Brasil - Dashboard Nacional de Distribuição de Vacinas
 
-**Use Lovable**
+Dashboard interativo e responsivo para visualização e análise de dados oficiais de distribuição e aplicação de vacinas em todo o território nacional.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/84027fd2-5b7f-4527-90f2-3bee09608788) and start prompting.
+## 📋 Sobre o Projeto
 
-Changes made via Lovable will be committed automatically to this repo.
+Este projeto acadêmico oferece uma interface moderna para acompanhamento em tempo real da campanha de vacinação nacional, com:
 
-**Use your preferred IDE**
+- **KPIs em tempo real**: Doses distribuídas, aplicadas, estoque e taxa de aplicação
+- **Série temporal interativa**: Evolução das doses ao longo do tempo
+- **Mapa do Brasil**: Visualização geográfica por UF
+-- **Filtros dinâmicos**: Ano, mês, UF e fabricante/vacina
+- **Design responsivo**: Funciona perfeitamente em desktop, tablet e mobile
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🚀 Stack Tecnológica
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- **Frontend**: React 18 + TypeScript + Vite
+- **UI**: TailwindCSS + shadcn/ui
+- **Gerenciamento de Estado**: Zustand
+- **Visualização de Dados**: Recharts + react-simple-maps
+- **Animações**: Framer Motion
+- **Backend**: FastAPI (integração via REST API)
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/84027fd2-5b7f-4527-90f2-3bee09608788) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
-
-## Backend (normalização on-the-fly)
-
-Este repositório também inclui um backend Python/FastAPI simples para normalizar dinamicamente os campos recebidos do dataset (por exemplo, `TX_INSUMO` e `TX_SIGLA`). Ele é usado apenas como protótipo para que o frontend possa consumir dados já normalizados sem necessidade de migrar/atualizar o banco imediatamente.
-
-- Localização: `backend/`
-- Arquivos principais:
-	- `backend/app.py` — servidor FastAPI mínimo com endpoints de exemplo (`/normalize`, `/overview`, `/timeseries`, `/ranking/ufs`, `/forecast`).
-	- `backend/normalizer.py` — módulo que carrega `backend/mappings.json` e aplica regex para mapear `TX_INSUMO` → `tx_insumo_norm` e `TX_SIGLA` → `tx_sigla_norm`.
-	- `backend/mappings.json` — patterns usados para normalização (padrões regex e prioridades).
-	- `backend/etl_normalize.py` — script utilitário para rodar o ETL offline e gerar JSONs normalizados (útil para backfill).
-
-Como executar localmente:
+## 📦 Instalação
 
 ```bash
-# criar/ativar venv e instalar dependências
-python -m venv .venv
-source .venv/bin/activate
-pip install fastapi uvicorn
+# Clone o repositório
+git clone <seu-repositorio>
+cd <nome-do-projeto>
 
-# iniciar servidor (porta 8000)
-python -m uvicorn backend.app:app --reload --port 8000
+# Instale as dependências
+npm install
+
+# Configure as variáveis de ambiente
+cp .env.example .env
+# Edite o arquivo .env e configure VITE_BASE_API_URL
 ```
 
-Endpoints úteis:
-- `GET /normalize?tx_insumo=...&tx_sigla=...` — retorna os campos normalizados (útil para testar um único registro).
-- `GET /overview` — versão de exemplo que usa os JSONs locais quando não há DB; aceita filtros `ano`, `mes`, `uf`, `fabricante`.
+## ⚙️ Configuração do Backend
 
-Se for integrar com Supabase em produção, a recomendação é persistir `tx_insumo_norm` e `tx_sigla_norm` no banco e migrar os patterns para uma tabela (`insumo_mappings`) para facilitar atualizações sem deploy.
+O dashboard consome dados de uma API FastAPI. Configure a URL base no arquivo `.env`:
+
+```env
+VITE_BASE_API_URL=http://localhost:8000
+```
+
+### Endpoints Esperados
+
+O backend deve expor os seguintes endpoints:
+
+#### 1. GET `/overview`
+Retorna KPIs agregados.
+
+**Query Params**: `ano`, `mes`, `uf`, `fabricante` (todos opcionais)
+
+**Resposta esperada**:
+```json
+{
+	"total_doses": 1000000,
+	"total_aplicadas": 850000,
+	"total_estoque": 150000,
+	"taxa_aplicacao": 85.0,
+	"periodo": "2024-01"
+}
+```
+
+#### 2. GET `/timeseries`
+Retorna série temporal de distribuição.
+
+**Query Params**: `ano`, `mes`, `uf`, `fabricante` (todos opcionais)
+
+**Resposta esperada**:
+```json
+[
+	{
+		"data": "2024-01-01",
+		"doses_distribuidas": 100000,
+		"doses_aplicadas": 85000,
+		"doses_estoque": 15000
+	},
+	...
+]
+```
+
+#### 3. GET `/ranking/ufs`
+Retorna dados agregados por UF.
+
+**Query Params**: `ano`, `mes`, `uf`, `fabricante` (todos opcionais)
+
+**Resposta esperada**:
+```json
+[
+	{
+		"uf": "São Paulo",
+		"sigla": "SP",
+		"doses_distribuidas": 500000,
+		"doses_aplicadas": 450000,
+		"doses_estoque": 50000,
+		"taxa_aplicacao": 90.0
+	},
+	...
+]
+```
+
+### Importante: Conversão de Parâmetros
+
+O frontend exibe o filtro como **"Vacina"** (para facilitar a seleção do tipo de vacina), mas envia o valor como **"fabricante"** para a API. Esta conversão é feita automaticamente no cliente.
+
+## 🏃 Executando o Projeto
+
+```bash
+# Modo desenvolvimento
+npm run dev
+
+# Build para produção
+npm run build
+
+# Preview da build
+npm start
+```
+
+O aplicativo estará disponível em `http://localhost:8080`
+
+## 📁 Estrutura do Projeto
+
+```
+src/
+├── components/
+│   └── dashboard/
+│       ├── FilterSection.tsx    # Filtros do dashboard
+│       ├── KPICards.tsx         # Cards de indicadores
+│       ├── TimeseriesChart.tsx  # Gráfico de série temporal
+│       └── BrazilMap.tsx        # Mapa interativo do Brasil
+├── lib/
+│   └── api.ts                   # Cliente da API
+├── pages/
+│   ├── Landing.tsx              # Página inicial
+│   ├── Dashboard.tsx            # Dashboard principal
+│   └── About.tsx                # Página sobre
+├── stores/
+│   └── filterStore.ts           # Store Zustand para filtros
+└── index.css                    # Design system
+```
+
+## 🎨 Design System
+
+O projeto utiliza um design system baseado em tokens semânticos:
+
+- **Primário (Verde)**: `hsl(158 64% 52%)` - Representa saúde
+- **Secundário (Azul)**: `hsl(217 91% 60%)` - Representa confiança institucional
+- **Gradientes**: Definidos em CSS variables para consistência
+- **Sombras**: Sistema de elevação com múltiplos níveis
+- **Animações**: Transições suaves com Framer Motion
+
+## 🔄 Sincronização de Filtros
+
+Os filtros do dashboard são:
+- Sincronizados com a URL via query params
+- Persistidos no estado global com Zustand
+- Atualizados em tempo real em todos os componentes
+
+Exemplo de URL: `/dashboard?ano=2024&mes=01&uf=SP&vacina=Pfizer` (o frontend agora envia `vacina`; o backend ainda aceita `fabricante` como parâmetro para compatibilidade)
+
+## 🧪 Desenvolvimento
+
+### Lint
+```bash
+npm run lint
+```
+
+### Type Check
+```bash
+npm run type-check
+```
+
+## 📊 Funcionalidades Implementadas
+
+- ✅ Landing page animada com CTA
+- ✅ Dashboard com filtros dinâmicos
+- ✅ KPIs em cards responsivos
+- ✅ Série temporal com Recharts
+- ✅ Mapa do Brasil com react-simple-maps
+- ✅ Estados de loading, erro e vazio
+- ✅ Sincronização URL ↔ Estado
+- ✅ Design responsivo e acessível
+- ✅ Página sobre o projeto
+- ✅ SEO otimizado
+
+## 🌐 Deploy
+
+O projeto está pronto para deploy em plataformas como:
+- Vercel
+- Netlify
+- GitHub Pages
+- Lovable (recomendado)
+
+Certifique-se de configurar a variável `VITE_BASE_API_URL` no ambiente de produção.
+
+## 📝 Licença
+
+Projeto acadêmico desenvolvido para fins educacionais.
+
+## 👥 Autores
+
+Desenvolvido como trabalho acadêmico.
+
+## 🔗 Links Úteis
+
+- [OpenDataSUS](https://opendatasus.saude.gov.br/)
+- [Ministério da Saúde](https://www.gov.br/saude/pt-br)
+- [React](https://react.dev/)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [Recharts](https://recharts.org/)
+
+````
 

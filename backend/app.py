@@ -6,10 +6,13 @@ from pathlib import Path
 import json
 import os
 import asyncio
-import asyncpg
+try:
+    import asyncpg
+except Exception:  # pragma: no cover - optional dependency
+    asyncpg = None
 import httpx
 from backend.normalizer import get_default_normalizer
-from backend.previsao_router import router as previsao_router
+from backend.routers.previsao_router import router as previsao_router
 from backend.env_utils import ensure_loaded_backend_env
 
 # load backend/.env if present (prefer the file inside the backend folder)
@@ -20,7 +23,7 @@ ensure_loaded_backend_env()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 DATA_TABLE = os.getenv("DATA_TABLE", "distribuicao")
-_default_origins = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080"
+_default_origins = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081"
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", _default_origins).split(",")
 
 app = FastAPI(title="Vacina Normalizer API")
@@ -30,7 +33,8 @@ normalizer = get_default_normalizer()
 app.include_router(previsao_router, prefix="/api")
 
 # Async DB pool (optional)
-db_pool: Optional[asyncpg.pool.Pool] = None
+from typing import Any
+db_pool: Optional[Any] = None
 
 # configure CORS for dev (origins from CORS_ORIGINS env var)
 app.add_middleware(
@@ -52,11 +56,14 @@ async def startup_event():
     ensure_loaded_backend_env()
 
     if os.getenv("DATABASE_URL"):
-        try:
-            db_pool = await asyncpg.create_pool(os.getenv("DATABASE_URL"), min_size=1, max_size=5)
-            print("Connected to database")
-        except Exception as e:
-            print("Failed to connect to database:", e)
+        if asyncpg is None:
+            print("DATABASE_URL is set but asyncpg is not installed; skipping DB pool creation")
+        else:
+            try:
+                db_pool = await asyncpg.create_pool(os.getenv("DATABASE_URL"), min_size=1, max_size=5)
+                print("Connected to database")
+            except Exception as e:
+                print("Failed to connect to database:", e)
     else:
         # not connected via DATABASE_URL; log Supabase REST availability
         supabase_url = os.getenv("SUPABASE_URL")
@@ -76,9 +83,9 @@ async def shutdown_event():
 
 
 def _load_local_data() -> List[Dict[str, Any]]:
-    # prefer rerun2, then rerun, then normalized_vacinas.json, then normalized.json
+    # prefer rerun2, then rerun; older filenames were removed to avoid confusion
     base = Path("backend")
-    candidates = ["normalized_vacinas_rerun2.json", "normalized_vacinas_rerun.json", "normalized_vacinas.json", "normalized.json"]
+    candidates = ["normalized_vacinas_rerun2.json", "normalized_vacinas_rerun.json"]
     for c in candidates:
         p = base / c
         if p.exists():

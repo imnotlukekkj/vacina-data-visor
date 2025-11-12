@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Activity, AlertCircle, Info } from "lucide-react";
 import { useFilterStore } from "@/stores/filterStore";
-import { apiClient, OverviewData, TimeseriesDataPoint, RankingUF, ForecastDataPoint } from "@/lib/api";
+import { apiClient } from "@/services/apiClient";
+import { OverviewData, TimeseriesDataPoint, RankingUF, ForecastDataPoint } from "@/types/apiTypes";
 import FilterSection from "@/components/dashboard/FilterSection";
 import KPICards from "@/components/dashboard/KPICards";
 import TimeseriesChart from "@/components/dashboard/TimeseriesChart";
@@ -10,6 +11,7 @@ import BrazilMap from "@/components/dashboard/BrazilMap";
 import ForecastChart from "@/components/dashboard/ForecastChart";
 import ComparisonChart from "@/components/dashboard/ComparisonChart";
 import ErrorBoundary from "@/components/ui/error-boundary";
+import ExplainForecastButton from "@/components/dashboard/ExplainForecastButton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { motion } from "framer-motion";
 
@@ -20,7 +22,7 @@ const Dashboard = (): JSX.Element => {
   const [overviewData, setOverviewData] = useState<OverviewData | null>(null);
   const [timeseriesData, setTimeseriesData] = useState<TimeseriesDataPoint[]>([]);
   const [rankingData, setRankingData] = useState<RankingUF[]>([]);
-  const [forecastData, setForecastData] = useState<any[]>([]);
+  const [forecastData, setForecastData] = useState<any>([]);
 
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [loadingTimeseries, setLoadingTimeseries] = useState(false);
@@ -37,8 +39,9 @@ const Dashboard = (): JSX.Element => {
 
       // Overview
       setLoadingOverview(true);
+      let overview: OverviewData | null = null;
       try {
-        const overview = await apiClient.getOverview(params);
+        overview = await apiClient.getOverview(params);
         setOverviewData(overview);
       } catch (err) {
         setError("Erro ao carregar dados. Verifique se o backend está rodando.");
@@ -79,12 +82,12 @@ const Dashboard = (): JSX.Element => {
 
       setLoadingForecast(true);
       try {
-        const forecast = await apiClient.getForecast(params);
-        // keep existing forecast series from the legacy /forecast endpoint
-        let merged = forecast || [];
+  const forecast = await apiClient.getForecast(params);
+  // keep existing forecast series from the legacy /forecast endpoint
+  let merged = forecast || [];
 
-        // if user selected a vacina, call the new comparison endpoint and render a simple bar chart
-        if (vacina) {
+  // if user selected a vacina, call the new comparison endpoint and render a simple bar chart
+  if (vacina) {
           try {
             // endpoint requires ano=2024 per backend validation
             const resp: any = await apiClient.getComparacao({ insumo_nome: vacina, ano: 2024, uf: uf || undefined, mes: mes || undefined });
@@ -100,8 +103,9 @@ const Dashboard = (): JSX.Element => {
                 setForecastData([]);
                 setForecastInsufficient(true);
               } else {
-                // pass the comparison array directly to the chart component
-                setForecastData(dados as any);
+                // pass the comparison payload (may include projecao_unidade) to the chart component
+                // store the full response so the chart can annualize when appropriate
+                setForecastData(resp as any);
                 setForecastInsufficient(false);
               }
             } else {
@@ -121,7 +125,37 @@ const Dashboard = (): JSX.Element => {
             }
           }
         } else {
-          setForecastData(merged);
+          // If user selected a year (ano) but not a specific vacina, show a comparison-style
+          // view comparing the total doses for the selected year vs the 2025 projection (annualized)
+          if (ano) {
+            try {
+              // Use the same comparison logic as the vacina flow by calling the
+              // backend /api/previsao/comparacao WITHOUT an insumo_nome so the
+              // server computes totals/projecoes across all vacinas.
+              const resp: any = await apiClient.getComparacao({ ano: Number(ano), uf: uf || undefined, mes: mes || undefined });
+
+              if (resp && Array.isArray(resp.dados_comparacao)) {
+                const q2024 = resp.dados_comparacao.find((d: any) => Number(d.ano) === Number(ano))?.quantidade ?? null;
+                const q2025 = resp.dados_comparacao.find((d: any) => Number(d.ano) === 2025)?.quantidade ?? null;
+                if ((q2024 === null || q2024 === 0) && (q2025 === null || q2025 === 0)) {
+                  setForecastData([]);
+                  setForecastInsufficient(true);
+                } else {
+                  setForecastData(resp);
+                  setForecastInsufficient(false);
+                }
+              } else {
+                setForecastData([]);
+                setForecastInsufficient(true);
+              }
+            } catch (err) {
+              console.error(err);
+              setForecastData([]);
+              setForecastInsufficient(true);
+            }
+          } else {
+            setForecastData(merged);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -153,14 +187,7 @@ const Dashboard = (): JSX.Element => {
           <p className="text-muted-foreground">Acompanhe os dados de distribuição e aplicação de vacinas em tempo real</p>
         </motion.div>
 
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertTitle>Configuração do Backend</AlertTitle>
-          <AlertDescription>
-            Este dashboard consome dados de uma API FastAPI. Configure a variável de ambiente{' '}
-            <code className="bg-muted px-1 py-0.5 rounded">VITE_BASE_API_URL</code> para apontar para seu backend.
-          </AlertDescription>
-        </Alert>
+        
 
         {error && (
           <Alert variant="destructive">
@@ -186,9 +213,13 @@ const Dashboard = (): JSX.Element => {
           </Alert>
         )}
 
-        {vacina ? (
+        { (vacina || (ano && !mes && !vacina)) ? (
           <ErrorBoundary>
             <ComparisonChart data={forecastData} loading={loadingForecast} />
+            <div className="mt-3">
+              {/* explanation button placed below the comparison chart */}
+              <ExplainForecastButton />
+            </div>
           </ErrorBoundary>
         ) : (
           <ErrorBoundary>

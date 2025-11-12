@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { X } from "lucide-react";
 import { useFilterStore } from "@/stores/filterStore";
-import { apiClient } from "@/lib/api";
+import { apiClient } from "@/services/apiClient";
 
 const ANOS = ["2020", "2021", "2022", "2023", "2024"];
 const MESES = [

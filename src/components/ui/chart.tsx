@@ -164,10 +164,11 @@ const ChartTooltipContent = React.forwardRef<
             const key = `${nameKey || item.name || item.dataKey || "value"}`;
             const itemConfig = getPayloadConfigFromPayload(config, item, key);
             const indicatorColor = color || item.payload.fill || item.color;
+            const safeKey = `${(item as any).dataKey ?? (item as any).name ?? index}`;
 
             return (
               <div
-                key={item.dataKey}
+                key={safeKey}
                 className={cn(
                   "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
                   indicator === "dot" && "items-center",
@@ -247,12 +248,13 @@ const ChartLegendContent = React.forwardRef<
       className={cn("flex items-center justify-center gap-4", verticalAlign === "top" ? "pb-3" : "pt-3", className)}
     >
       {payload.map((item) => {
-        const key = `${nameKey || item.dataKey || "value"}`;
+        const key = `${nameKey || (item as any).dataKey || "value"}`;
         const itemConfig = getPayloadConfigFromPayload(config, item, key);
+        const safeKey = `${(item as any).dataKey ?? (item as any).value ?? (item as any).name ?? Math.random()}`;
 
         return (
           <div
-            key={item.value}
+            key={safeKey}
             className={cn("flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground")}
           >
             {itemConfig?.icon && !hideIcon ? (

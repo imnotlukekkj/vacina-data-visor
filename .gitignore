@@ -25,3 +25,8 @@ dist-ssr
 
 # environment files
 /backend/.env
+
+# ignore python virtualenvs
+.venv
+venv
+backend/.venv
