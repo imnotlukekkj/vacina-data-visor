@@ -21,6 +21,43 @@ from ..schemas.previsao_schemas import ComparisonResponse
 router = APIRouter()
 
 
+# Backwards-compatible stub endpoints for legacy frontend routes.
+# The frontend may call /api/overview, /api/timeseries, /api/ranking/ufs,
+# /api/forecast and /api/mappings. Some hosting platforms already proxy
+# under an /api prefix; providing these stub routes here avoids 404s while
+# the frontend and backend are migrated to a single routing strategy.
+
+
+@router.get("/api/overview")
+async def api_overview_stub():
+    # Minimal successful response so the frontend can render initial state.
+    return JSONResponse(status_code=200, content={})
+
+
+@router.get("/api/timeseries")
+async def api_timeseries_stub():
+    # Return empty array by default; frontend will treat as no-data.
+    return JSONResponse(status_code=200, content=[])
+
+
+@router.get("/api/ranking/ufs")
+async def api_ranking_ufs_stub():
+    # Return empty ranking by default.
+    return JSONResponse(status_code=200, content=[])
+
+
+@router.get("/api/forecast")
+async def api_forecast_stub():
+    # Forecast endpoint placeholder.
+    return JSONResponse(status_code=200, content=[])
+
+
+@router.get("/api/mappings")
+async def api_mappings_stub():
+    # Mappings placeholder; return empty set of vacinas.
+    return JSONResponse(status_code=200, content={"vacinas": []})
+
+
 def _find_insumo_pattern(normalizer, insumo_norm: Optional[str], original: str) -> Optional[str]:
     """Tenta localizar um pattern regex nos mappings a partir do nome normalizado
     ou, como fallback, checando cada pattern contra o texto original do insumo.
