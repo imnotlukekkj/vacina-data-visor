@@ -173,20 +173,46 @@ def extract_number_from_rpc_result(data: Any) -> Optional[float]:
 
 async def rpc_get_historico_e_previsao_raw(client, supabase_url: str, service_key: str, params_plain: Dict[str, Any], params_underscored: Dict[str, Any]):
     """Return (data, raw) where data is the RPC array (or wrapped) for
-    obter_historico_e_previsao_vacinacao. Tries SDK then HTTP fallback.
+    the new RPC `obter_comparacao_dados`.
+
+    Important: the RPC must always be called with the parameter `insumo_nome` (it
+    may be `None`). To satisfy that requirement we ensure the plain payload
+    contains the `insumo_nome` key even when its value is `None`.
+    Tries SDK then HTTP fallback.
     """
     data = None
-    rpc_name = "obter_historico_e_previsao_vacinacao"
+    rpc_name = "obter_comparacao_dados"
 
-    def _strip_none(d: Dict[str, Any]) -> Dict[str, Any]:
-        return {k: v for k, v in (d or {}).items() if v is not None}
+    def _strip_none_keep(d: Dict[str, Any], keep_keys: Optional[set] = None) -> Dict[str, Any]:
+        keep_keys = keep_keys or set()
+        out: Dict[str, Any] = {}
+        for k, v in (d or {}).items():
+            if v is None and k not in keep_keys:
+                continue
+            out[k] = v
+        return out
 
-    underscored_payload = _strip_none(params_underscored)
-    plain_payload = _strip_none(params_plain)
+    # Work on copies to avoid mutating caller dicts.
+    params_plain_copy = dict(params_plain or {})
+    params_underscored_copy = dict(params_underscored or {})
+
+    # Ensure the plain RPC param `insumo_nome` is always present (may be None).
+    if "insumo_nome" not in params_plain_copy:
+        # If caller supplied an underscored variant, try to map it, else None.
+        params_plain_copy["insumo_nome"] = params_underscored_copy.get("_insumo_nome") if "_insumo_nome" in params_underscored_copy else None
+
+    # Keep underscored param as well for SDK attempts (map from plain if missing)
+    if "_insumo_nome" not in params_underscored_copy:
+        params_underscored_copy["_insumo_nome"] = params_plain_copy.get("insumo_nome")
+
+    # When stripping None values, preserve the insumo key (even if None) so
+    # the HTTP RPC receives the parameter name explicitly.
+    underscored_payload = _strip_none_keep(params_underscored_copy, keep_keys={"_insumo_nome"})
+    plain_payload = _strip_none_keep(params_plain_copy, keep_keys={"insumo_nome"})
 
     if client is not None:
         try:
-            # Try underscored payload first (RPC often expects underscored param names)
+            # Try underscored payload first (SDK sometimes expects underscored names)
             resp = client.rpc(rpc_name, underscored_payload if underscored_payload else None).execute()
         except Exception:
             try:
@@ -320,13 +346,29 @@ async def rpc_obter_soma_por_ano_value(client, supabase_url: str, service_key: s
 async def rpc_obter_projecao_ano(client, supabase_url: str, service_key: str, params_plain: Dict[str, Any], params_underscored: Dict[str, Any], year: int = 2025) -> Tuple[Optional[float], Any]:
     proj_value: Optional[float] = None
     previsao_rpc_raw: Any = None
-    previsao_rpc = "obter_historico_e_previsao_vacinacao"
+    previsao_rpc = "obter_comparacao_dados"
 
-    def _strip_none(d: Dict[str, Any]) -> Dict[str, Any]:
-        return {k: v for k, v in (d or {}).items() if v is not None}
+    def _strip_none_keep(d: Dict[str, Any], keep_keys: Optional[set] = None) -> Dict[str, Any]:
+        keep_keys = keep_keys or set()
+        out: Dict[str, Any] = {}
+        for k, v in (d or {}).items():
+            if v is None and k not in keep_keys:
+                continue
+            out[k] = v
+        return out
 
-    underscored_payload = _strip_none(params_underscored)
-    plain_payload = _strip_none(params_plain)
+    # Work on copies to avoid mutating caller dicts.
+    params_plain_copy = dict(params_plain or {})
+    params_underscored_copy = dict(params_underscored or {})
+
+    # Ensure the plain RPC param `insumo_nome` is always present (may be None).
+    if "insumo_nome" not in params_plain_copy:
+        params_plain_copy["insumo_nome"] = params_underscored_copy.get("_insumo_nome") if "_insumo_nome" in params_underscored_copy else None
+    if "_insumo_nome" not in params_underscored_copy:
+        params_underscored_copy["_insumo_nome"] = params_plain_copy.get("insumo_nome")
+
+    underscored_payload = _strip_none_keep(params_underscored_copy, keep_keys={"_insumo_nome"})
+    plain_payload = _strip_none_keep(params_plain_copy, keep_keys={"insumo_nome"})
 
     if client is not None:
         try:
@@ -382,3 +424,49 @@ async def rpc_obter_projecao_ano(client, supabase_url: str, service_key: str, pa
                     return None, {"error": "rpc_failed", "status": status2 if 'status2' in locals() else status, "details": parsed2 if 'parsed2' in locals() else parsed}
 
     return proj_value, previsao_rpc_raw
+
+
+async def rpc_median_projection_totals(client, supabase_url: str, service_key: str, params_plain_base: Dict[str, Any], params_underscored_base: Dict[str, Any], years=None) -> Tuple[Optional[float], Any]:
+    """Compute median projection for totals by fetching annual sums for given years.
+
+    Uses rpc_obter_soma_por_ano_value to obtain the total per year (falls back to
+    table query if RPC missing). Returns (median_value, raw_list) where raw_list is
+    a list of per-year rpc raw responses for debugging.
+    """
+    if years is None:
+        years = [2020, 2021, 2022, 2023, 2024]
+
+    values = []
+    raw_list = []
+
+    for y in years:
+        # copy base params and set the target year
+        pp = dict(params_plain_base or {})
+        pu = dict(params_underscored_base or {})
+        pp["ano"] = y
+        pu["_ano"] = y
+
+        try:
+            soma_value, soma_raw = await rpc_obter_soma_por_ano_value(client, supabase_url, service_key, pp, pu)
+        except Exception:
+            soma_value, soma_raw = None, {"error": "exception"}
+
+        raw_list.append({"ano": y, "raw": soma_raw})
+        if soma_value is not None:
+            try:
+                values.append(float(soma_value))
+            except Exception:
+                continue
+
+    if not values:
+        return None, raw_list
+
+    # compute median
+    values.sort()
+    n = len(values)
+    if n % 2 == 1:
+        median = values[n // 2]
+    else:
+        median = (values[n // 2 - 1] + values[n // 2]) / 2.0
+
+    return median, raw_list

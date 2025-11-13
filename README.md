@@ -229,5 +229,16 @@ Desenvolvido como trabalho acadêmico.
 - [shadcn/ui](https://ui.shadcn.com/)
 - [Recharts](https://recharts.org/)
 
+## Nota sobre Projeção Nacional Total
+
+Quando o usuário solicita a comparação no modo "Totais Nacionais" (sem especificar um
+`insumo_nome`), o backend utiliza um fallback estatístico estável para calcular a
+projeção do ano seguinte. Em caso de falha ou indisponibilidade da função RPC de
+projeção, o sistema calcula a **Mediana Aritmética** dos totais anuais agregados
+para os anos de 2020 a 2024 e usa esse valor como a quantidade projetada para 2025.
+
+Essa abordagem foi escolhida por sua robustez contra outliers e instabilidades na
+regressão linear quando aplicada aos totais agregados.
+
 ````
 

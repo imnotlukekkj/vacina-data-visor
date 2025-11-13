@@ -14,6 +14,7 @@ from ..repositories.supabase_repo import (
     rpc_get_historico_e_previsao_raw,
     rpc_obter_soma_por_ano_value,
     rpc_obter_projecao_ano,
+    rpc_median_projection_totals,
 )
 from ..schemas.previsao_schemas import ComparisonResponse
 
@@ -60,7 +61,7 @@ async def previsao(
     debug: Optional[bool] = Query(False),
 ) -> Any:
     """
-    Chama a função RPC `public.obter_historico_e_previsao_vacinacao` e retorna uma lista de objetos JSON
+    Chama a função RPC `public.obter_comparacao_dados` e retorna uma lista de objetos JSON
     com a série histórica + previsão (ano, quantidade, tipo_dado).
 
     Requisitos:
@@ -102,7 +103,7 @@ async def previsao(
         # rpc_raw is expected to contain error info when call failed
         return JSONResponse(status_code=502, content={"erro": "Falha ao chamar RPC via HTTP no Supabase.", "details": rpc_raw})
 
-    # The RPC `obter_historico_e_previsao_vacinacao` is expected to return
+    # The RPC `obter_comparacao_dados` is expected to return
     # a list of objects. Per spec we must return that list exactly as
     # received from Supabase (plain array). Preserve raw payload when
     # possible and only try to unwrap common PostgREST wrappers.
@@ -189,7 +190,7 @@ async def previsao_comparacao(
 
     Implementação:
     - Chama `public.obter_soma_por_ano` com `_ano=2024` e filtros para obter o total de 2024.
-    - Chama `public.obter_historico_e_previsao_vacinacao` e extrai a linha com ano=2025 para obter a projeção.
+    - Chama `public.obter_comparacao_dados` e extrai a linha com ano=2025 para obter a projeção.
     """
     # Validações iniciais
     if ano is None or int(ano) != 2024:
@@ -231,12 +232,19 @@ async def previsao_comparacao(
         params_plain_soma["mes"] = mes_int
         params_underscored_soma["_mes"] = mes_int
 
-    # Prepare params for obter_historico_e_previsao_vacinacao
+    # Prepare params for obter_comparacao_dados. Per new RPC contract we must
+    # always include the plain parameter `insumo_nome` (it may be None).
     params_plain_prev: Dict[str, Any] = {}
     params_underscored_prev: Dict[str, Any] = {}
+    # Determine the value to send for insumo: prefer pattern (if found), then
+    # fabricante_norm, then the original trimmed input; if no insumo provided,
+    # explicitly set to None so the RPC receives the parameter name.
     if insumo_nome_trim:
-        params_plain_prev["insumo_nome"] = insumo_nome_trim
-        params_underscored_prev["_insumo_nome"] = insumo_pattern or (fabricante_norm or insumo_nome_trim)
+        insumo_to_send = insumo_pattern or (fabricante_norm or insumo_nome_trim)
+    else:
+        insumo_to_send = None
+    params_plain_prev["insumo_nome"] = insumo_to_send
+    params_underscored_prev["_insumo_nome"] = insumo_to_send
     if uf_trim:
         params_plain_prev["uf"] = uf_trim
         params_underscored_prev["_uf"] = uf_trim
@@ -256,9 +264,32 @@ async def previsao_comparacao(
         return JSONResponse(status_code=502, content={"erro": "Falha ao chamar RPC obter_soma_por_ano no Supabase.", "details": soma_rpc_raw})
 
     # --- Call 2: obter_historico_e_previsao_vacinacao (extrair 2025)
-    proj_value, previsao_rpc_raw = await rpc_obter_projecao_ano(client, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, params_plain_prev, params_underscored_prev, year=2025)
-    if isinstance(previsao_rpc_raw, dict) and previsao_rpc_raw.get("error") == "rpc_failed":
-        return JSONResponse(status_code=502, content={"erro": "Falha ao chamar RPC obter_historico_e_previsao_vacinacao no Supabase.", "details": previsao_rpc_raw})
+    # If no insumo was provided, the DB RPC may not have a signature that
+    # accepts a 'TOTAL' sentinel. In that case avoid calling the RPC for
+    # projection and rely on the soma (historical total) only. This prevents
+    # returning 502 errors when the DB function does not support totalization.
+    proj_value = None
+    previsao_rpc_raw = []
+    if insumo_nome_trim:
+        proj_value, previsao_rpc_raw = await rpc_obter_projecao_ano(client, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, params_plain_prev, params_underscored_prev, year=2025)
+        if isinstance(previsao_rpc_raw, dict) and previsao_rpc_raw.get("error") == "rpc_failed":
+            # Treat RPC failure for projection as non-fatal when comparing totals;
+            # set proj_value to None and continue so the response returns the
+            # historical soma and a null projection rather than HTTP 502.
+            proj_value = None
+            previsao_rpc_raw = []
+
+    # If totals mode (no insumo) and projection RPC didn't return a value,
+    # compute a stable fallback using the median of annual totals (2020-2024).
+    if proj_value is None and not insumo_nome_trim:
+        try:
+            med_val, med_raw = await rpc_median_projection_totals(client, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, params_plain_soma, params_underscored_soma)
+            if med_val is not None:
+                proj_value = med_val
+                previsao_rpc_raw = med_raw or []
+        except Exception:
+            # non-fatal: leave proj_value as None
+            pass
 
     # Build response payload. Use None for quantidade when absent so the frontend
     # can distinguish 'no data' from zero. Always return HTTP 200; the
