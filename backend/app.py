@@ -29,8 +29,12 @@ CORS_ORIGINS = os.getenv("CORS_ORIGINS", _default_origins).split(",")
 app = FastAPI(title="Vacina Normalizer API")
 normalizer = get_default_normalizer()
 
-# include previsao router (exposes /api/previsao)
-app.include_router(previsao_router, prefix="/api")
+# include previsao router (exposes /previsao)
+# NOTE: removed prefix="/api" because the hosting platform (Render/Vercel)
+# may already proxy requests under an /api path. Keeping the prefix caused
+# double /api/api/... paths and 404s. Routes in `previsao_router` will now
+# be available at their root paths (e.g. /previsao, /previsao/comparacao).
+app.include_router(previsao_router)
 
 # Async DB pool (optional)
 from typing import Any
