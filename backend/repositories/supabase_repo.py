@@ -178,12 +178,19 @@ async def rpc_get_historico_e_previsao_raw(client, supabase_url: str, service_ke
     data = None
     rpc_name = "obter_historico_e_previsao_vacinacao"
 
+    def _strip_none(d: Dict[str, Any]) -> Dict[str, Any]:
+        return {k: v for k, v in (d or {}).items() if v is not None}
+
+    underscored_payload = _strip_none(params_underscored)
+    plain_payload = _strip_none(params_plain)
+
     if client is not None:
         try:
-            resp = client.rpc(rpc_name, params_underscored).execute()
+            # Try underscored payload first (RPC often expects underscored param names)
+            resp = client.rpc(rpc_name, underscored_payload if underscored_payload else None).execute()
         except Exception:
             try:
-                resp = client.rpc(rpc_name, params_plain).execute()
+                resp = client.rpc(rpc_name, plain_payload if plain_payload else None).execute()
             except Exception:
                 resp = None
 
@@ -203,27 +210,20 @@ async def rpc_get_historico_e_previsao_raw(client, supabase_url: str, service_ke
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
-        status, parsed = await http_rpc_call(rpc_url, headers, params_plain)
+        status, parsed = await http_rpc_call(rpc_url, headers, plain_payload)
         if status in (200, 201):
             data = parsed
             return data, parsed
         else:
-            alt = {}
-            if params_plain.get("insumo_nome") is not None:
-                alt["_insumo_nome"] = params_plain.get("insumo_nome")
-            if params_plain.get("mes") is not None:
-                alt["_mes"] = params_plain.get("mes")
-            if params_plain.get("uf") is not None:
-                alt["_uf"] = params_plain.get("uf")
-            if alt:
-                status2, parsed2 = await http_rpc_call(rpc_url, headers, alt)
+            # As a fallback try underscored payload (if it differs)
+            if underscored_payload and underscored_payload != plain_payload:
+                status2, parsed2 = await http_rpc_call(rpc_url, headers, underscored_payload)
                 if status2 in (200, 201):
                     data = parsed2
                     return data, parsed2
                 else:
                     return None, {"error": "http_rpc_failed", "status": status2, "details": parsed2}
-            else:
-                return None, {"error": "http_rpc_failed", "status": status, "details": parsed}
+            return None, {"error": "http_rpc_failed", "status": status, "details": parsed}
 
     return data, data
 
@@ -233,12 +233,18 @@ async def rpc_obter_soma_por_ano_value(client, supabase_url: str, service_key: s
     soma_rpc_raw: Any = None
     soma_rpc = "obter_soma_por_ano"
 
+    def _strip_none(d: Dict[str, Any]) -> Dict[str, Any]:
+        return {k: v for k, v in (d or {}).items() if v is not None}
+
+    underscored_payload = _strip_none(params_underscored)
+    plain_payload = _strip_none(params_plain)
+
     if client is not None:
         try:
-            resp = client.rpc(soma_rpc, params_underscored).execute()
+            resp = client.rpc(soma_rpc, underscored_payload if underscored_payload else None).execute()
         except Exception:
             try:
-                resp = client.rpc(soma_rpc, params_plain).execute()
+                resp = client.rpc(soma_rpc, plain_payload if plain_payload else None).execute()
             except Exception:
                 resp = None
 
@@ -259,12 +265,12 @@ async def rpc_obter_soma_por_ano_value(client, supabase_url: str, service_key: s
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
-        status, parsed = await http_rpc_call(rpc_url, headers, params_plain)
+        status, parsed = await http_rpc_call(rpc_url, headers, plain_payload)
         if status in (200, 201):
             soma_rpc_raw = parsed
             soma_value = extract_number_from_rpc_result(parsed)
         else:
-            status2, parsed2 = await http_rpc_call(rpc_url, headers, params_underscored)
+            status2, parsed2 = await http_rpc_call(rpc_url, headers, underscored_payload)
             if status2 in (200, 201):
                 soma_rpc_raw = parsed2
                 soma_value = extract_number_from_rpc_result(parsed2)
@@ -316,12 +322,18 @@ async def rpc_obter_projecao_ano(client, supabase_url: str, service_key: str, pa
     previsao_rpc_raw: Any = None
     previsao_rpc = "obter_historico_e_previsao_vacinacao"
 
+    def _strip_none(d: Dict[str, Any]) -> Dict[str, Any]:
+        return {k: v for k, v in (d or {}).items() if v is not None}
+
+    underscored_payload = _strip_none(params_underscored)
+    plain_payload = _strip_none(params_plain)
+
     if client is not None:
         try:
-            resp = client.rpc(previsao_rpc, params_underscored).execute()
+            resp = client.rpc(previsao_rpc, underscored_payload if underscored_payload else None).execute()
         except Exception:
             try:
-                resp = client.rpc(previsao_rpc, params_plain).execute()
+                resp = client.rpc(previsao_rpc, plain_payload if plain_payload else None).execute()
             except Exception:
                 resp = None
 
@@ -348,7 +360,7 @@ async def rpc_obter_projecao_ano(client, supabase_url: str, service_key: str, pa
             "Accept": "application/json",
             "Content-Type": "application/json",
         }
-        status, parsed = await http_rpc_call(rpc_url, headers, params_plain)
+        status, parsed = await http_rpc_call(rpc_url, headers, plain_payload)
         if status in (200, 201) and isinstance(parsed, list):
             previsao_rpc_raw = parsed
             for item in parsed:
@@ -357,7 +369,7 @@ async def rpc_obter_projecao_ano(client, supabase_url: str, service_key: str, pa
                     proj_value = nr.get("quantidade")
                     break
         else:
-            status2, parsed2 = await http_rpc_call(rpc_url, headers, params_underscored)
+            status2, parsed2 = await http_rpc_call(rpc_url, headers, underscored_payload)
             if status2 in (200, 201) and isinstance(parsed2, list):
                 previsao_rpc_raw = parsed2
                 for item in parsed2:

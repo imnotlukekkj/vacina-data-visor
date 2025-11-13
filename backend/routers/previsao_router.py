@@ -195,6 +195,10 @@ async def previsao_comparacao(
     if ano is None or int(ano) != 2024:
         return JSONResponse(status_code=400, content={"erro": "Para gerar a comparação de previsão, o ano base precisa ser 2024."})
 
+    # Validação: insumo_nome é obrigatório para a comparação
+    if not insumo_nome:
+        return JSONResponse(status_code=400, content={"erro": "É obrigatório informar o nome da vacina (insumo_nome) para gerar a comparação de previsão."})
+
     # ensure env loaded and required vars present
     ensure_loaded_backend_env()
     SUPABASE_URL = os.getenv("SUPABASE_URL")
