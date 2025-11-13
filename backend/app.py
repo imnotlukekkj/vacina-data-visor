@@ -45,7 +45,7 @@ origins = [
     "https://*.vercel.app", 
     # Domínio de produção (Vercel)
     os.getenv("FRONTEND_URL", "https://vacina-data-visor.vercel.app"),
-    # Domínios de desenvolvimento
+    "https://vacina-data-visor-9t9x-luisfelipes-projects-3aeb88d.vercel.app",
     "http://localhost:8080",
     "http://127.0.0.1:8000",
     "http://localhost:3000",
