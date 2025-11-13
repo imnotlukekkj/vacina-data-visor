@@ -39,16 +39,53 @@ class APIClient {
       err.body = txt;
       throw err;
     }
-    return response.json();
+    const payload = await response.json();
+    // Backend returns { total_doses: number, periodo: string|null }
+    // but some proxies or wrappers may nest the payload; normalize defensively.
+    if (payload && typeof payload === "object") {
+      if (Array.isArray(payload)) {
+        // unexpected array -> return empty overview
+        return { total_doses: 0, periodo: undefined };
+      }
+      if (payload.total_doses !== undefined) {
+        return { total_doses: Number(payload.total_doses || 0), periodo: payload.periodo };
+      }
+      // common wrapper shapes: { data: { ... } } or { result: { ... } }
+      if (payload.data && payload.data.total_doses !== undefined) {
+        return { total_doses: Number(payload.data.total_doses || 0), periodo: payload.data.periodo };
+      }
+      if (payload.result && payload.result.total_doses !== undefined) {
+        return { total_doses: Number(payload.result.total_doses || 0), periodo: payload.result.periodo };
+      }
+    }
+    // fallback: empty overview
+    return { total_doses: 0, periodo: undefined };
   }
 
   async getTimeseries(params?: FilterParams): Promise<TimeseriesDataPoint[]> {
     const url = this.buildURL("/timeseries", params);
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Erro ao buscar série temporal: ${response.statusText}`);
+      const txt = await response.text();
+      const err: any = new Error(`Erro ao buscar série temporal: ${response.status} ${txt}`);
+      err.status = response.status;
+      err.body = txt;
+      throw err;
     }
-    return response.json();
+    const payload = await response.json();
+    // Backend returns an array of { data: string, doses_distribuidas: number }
+    // Normalize common wrapper shapes defensively.
+    if (Array.isArray(payload)) {
+      return payload.map((p: any) => ({ data: String(p.data), doses_distribuidas: Number(p.doses_distribuidas || 0) }));
+    }
+    if (payload && payload.data && Array.isArray(payload.data)) {
+      return payload.data.map((p: any) => ({ data: String(p.data), doses_distribuidas: Number(p.doses_distribuidas || 0) }));
+    }
+    if (payload && payload.result && Array.isArray(payload.result)) {
+      return payload.result.map((p: any) => ({ data: String(p.data), doses_distribuidas: Number(p.doses_distribuidas || 0) }));
+    }
+    // fallback: empty array
+    return [];
   }
 
   async getRankingUFs(params?: FilterParams): Promise<RankingUF[]> {

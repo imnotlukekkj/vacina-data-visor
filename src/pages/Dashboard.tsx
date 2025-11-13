@@ -50,7 +50,12 @@ const Dashboard = (): JSX.Element => {
         overview = await apiClient.getOverview(params);
         // if a newer request started, stop processing this one
         if (requestCounter.current !== thisRequest) return;
-        setOverviewData(overview);
+        // ensure numeric shape: backend may return numbers as strings in some proxies
+        const normalizedOverview = {
+          total_doses: Number((overview as any)?.total_doses || 0),
+          periodo: (overview as any)?.periodo,
+        };
+        setOverviewData(normalizedOverview);
       } catch (err) {
         // Log HTTP error details (status/body) so we can see exact failure that
         // causes the user-facing banner. apiClient now attaches `status` and `body` when
@@ -75,9 +80,11 @@ const Dashboard = (): JSX.Element => {
       // Timeseries
       setLoadingTimeseries(true);
       try {
-        const timeseries = await apiClient.getTimeseries(params);
-        if (requestCounter.current !== thisRequest) return;
-        setTimeseriesData(timeseries);
+  const timeseries = await apiClient.getTimeseries(params);
+  if (requestCounter.current !== thisRequest) return;
+  // normalize timeseries entries to expected shape
+  const normalized = (timeseries || []).map((p: any) => ({ data: String(p.data), doses_distribuidas: Number(p.doses_distribuidas || 0) }));
+  setTimeseriesData(normalized);
       } catch (err) {
         // Log HTTP error details (status/body) so we can see exact failure that
         // causes the user-facing banner. apiClient now attaches `status` and `body` when
