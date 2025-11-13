@@ -41,8 +41,10 @@ FRONTEND_ORIGIN = os.getenv("FRONTEND_URL", "https://vacina-data-visor.vercel.ap
 
 # Lista de origens permitidas
 origins = [
+    # Aceita qualquer subdomínio do Vercel para deploys temporários
+    "https://*.vercel.app", 
     # Domínio de produção (Vercel)
-    FRONTEND_ORIGIN,
+    os.getenv("FRONTEND_URL", "https://vacina-data-visor.vercel.app"),
     # Domínios de desenvolvimento
     "http://localhost:8080",
     "http://127.0.0.1:8000",
