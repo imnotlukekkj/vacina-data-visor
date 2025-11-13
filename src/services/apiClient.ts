@@ -2,8 +2,15 @@ import { FilterParams, OverviewData, TimeseriesDataPoint, RankingUF, ForecastDat
 
 // API Client para comunicação com backend FastAPI
 
-// Use a variável de ambiente do Vite em produção. Em builds locais defina em .env
-const BASE_API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+// Use a variável de ambiente do Vite em produção. Em ambientes de build (ex: Vercel/Render)
+// a URL da API deve ser fornecida por `VITE_API_BASE_URL`. Não utilizar fallback para
+// localhost em produção: isso causava NetworkError em deploys que não expõem o backend.
+const BASE_API_URL = import.meta.env.VITE_API_BASE_URL;
+
+if (!BASE_API_URL) {
+  // Fail fast with a clear message to catch misconfigured deploys early
+  throw new Error("VITE_API_BASE_URL não configurada no ambiente!");
+}
 
 class APIClient {
   private baseURL: string;
@@ -26,7 +33,11 @@ class APIClient {
     const url = this.buildURL("/overview", params);
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Erro ao buscar overview: ${response.statusText}`);
+      const txt = await response.text();
+      const err: any = new Error(`Erro ao buscar overview: ${response.status} ${txt}`);
+      err.status = response.status;
+      err.body = txt;
+      throw err;
     }
     return response.json();
   }
