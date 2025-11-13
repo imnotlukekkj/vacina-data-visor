@@ -287,6 +287,47 @@ async def api_mappings():
     return JSONResponse(status_code=200, content={"vacinas": uniq})
 
 
+@router.get("/api/mappings/available")
+async def api_mappings_available(ano: int = Query(2024)):
+    """
+    Retorna vacinas normalizadas com total de doses > 0 no ano informado (padrão 2024).
+
+    Comportamento:
+    - Busca linhas da tabela `distribuicao_raw` para o ano solicitado (usando _fetch_rows).
+    - Normaliza `TX_INSUMO` via `normalizer.normalize_insumo` e agrega soma de QTDE por vacina normalizada.
+    - Retorna apenas vacinas com total_doses > 0 no formato: [{vacina, total_doses, ano_base}]
+    """
+    table = os.getenv("RAW_DATA_TABLE", "distribuicao_raw")
+    # Fetch rows for the requested year. _fetch_rows will prefer Supabase REST when available
+    # and fallback to local JSON fixtures when not.
+    rows = await _fetch_rows(table, {"ano": str(ano), "mes": None, "uf": None, "fabricante": None})
+    normalizer = get_default_normalizer()
+
+    totals_by_vacina: Dict[str, float] = {}
+    for r in rows:
+        tx = r.get("TX_INSUMO")
+        if not tx:
+            continue
+        vac_norm = normalizer.normalize_insumo(tx)
+        # only consider rows that map to a normalized vacina name
+        if not vac_norm:
+            continue
+        try:
+            q = float(r.get("QTDE") or 0)
+        except Exception:
+            q = 0.0
+        totals_by_vacina.setdefault(vac_norm, 0.0)
+        totals_by_vacina[vac_norm] += q
+
+    # Build response list filtered to totals > 0
+    resp = []
+    for vac, total in sorted(totals_by_vacina.items(), key=lambda x: -x[1]):
+        if total and float(total) > 0.0:
+            resp.append({"vacina": vac, "total_doses": int(total), "ano_base": ano})
+
+    return JSONResponse(status_code=200, content=resp)
+
+
 def _find_insumo_pattern(normalizer, insumo_norm: Optional[str], original: str) -> Optional[str]:
     """Tenta localizar um pattern regex nos mappings a partir do nome normalizado
     ou, como fallback, checando cada pattern contra o texto original do insumo.

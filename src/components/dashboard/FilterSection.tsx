@@ -33,7 +33,7 @@ const UFS = [
 const FilterSection = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { ano, mes, uf, vacina, setAno, setMes, setUF, setVacina, clearFilters } = useFilterStore();
-  const [vacinasList, setVacinasList] = useState<string[]>([]);
+  const [vacinasList, setVacinasList] = useState<Array<{ vacina: string; total_doses: number }>>([]);
   const [loadingVacinas, setLoadingVacinas] = useState(false);
 
   // Sincroniza URL com store
@@ -57,7 +57,9 @@ const FilterSection = () => {
       .getVacinas()
       .then((list) => {
         if (!mounted) return;
-        setVacinasList(list);
+        // garantindo shape consistente (alguns ambientes podem retornar apenas nomes)
+        const normalized = list.map((it: any) => (typeof it === "string" ? { vacina: it, total_doses: 0 } : it));
+        setVacinasList(normalized);
       })
       .catch((err) => {
         console.error("Erro ao carregar vacinas:", err);
@@ -147,7 +149,13 @@ const FilterSection = () => {
                   <SelectItem value="all">Carregando...</SelectItem>
                 ) : (
                   vacinasList.map((i) => (
-                    <SelectItem key={i} value={i}>{i}</SelectItem>
+                    <SelectItem key={i.vacina} value={i.vacina}>
+                      {i.vacina}
+                      {i.total_doses ? (
+                        // força cor branca para melhor contraste ao passar o mouse
+                        <span className="ml-2 text-xs text-white"> ({i.total_doses.toLocaleString("pt-BR")})</span>
+                      ) : null}
+                    </SelectItem>
                   ))
                 )}
               </SelectContent>

@@ -100,8 +100,8 @@ const About = () => {
               <div>
                 <h4 className="font-semibold text-foreground mb-2">Funcionalidades</h4>
                 <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                  <li>Filtros dinâmicos por ano, mês, UF e fabricante</li>
-                  <li>KPIs em tempo real (doses distribuídas, aplicadas e estoque)</li>
+                  <li>Filtros dinâmicos por ano, mês, UF e vacinas</li>
+                  <li>KPIs em tempo real</li>
                   <li>Série temporal com visualização gráfica</li>
                   <li>Mapa interativo do Brasil com dados por UF</li>
                   <li>Design responsivo e acessível</li>
@@ -153,7 +153,7 @@ const About = () => {
                 → Ministério da Saúde
               </a>
               <a 
-                href="https://github.com" 
+                href="https://github.com/imnotlukekkj/vacina-data-visor" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="block text-primary hover:text-primary/80 transition-colors"

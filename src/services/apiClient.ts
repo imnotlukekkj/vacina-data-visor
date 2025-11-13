@@ -159,14 +159,22 @@ class APIClient {
     return response.json();
   }
 
-  async getVacinas(): Promise<string[]> {
-  const url = new URL("/api/mappings", this.baseURL).toString();
+  // Retorna lista de vacinas disponíveis com total de doses, com shape
+  // [{ vacina: string, total_doses: number, ano_base?: number }, ...]
+  async getVacinas(): Promise<Array<{ vacina: string; total_doses: number }>> {
+    const url = new URL("/api/mappings/available", this.baseURL).toString();
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Erro ao buscar vacinas: ${response.statusText}`);
     }
-    const data = await response.json();
-    return data.vacinas || [];
+    const payload = await response.json();
+    // Expecting an array of objects. Handle common wrapper shapes defensively.
+    let items: any[] = [];
+    if (Array.isArray(payload)) items = payload;
+    else if (payload && Array.isArray(payload.data)) items = payload.data;
+    else if (payload && Array.isArray(payload.result)) items = payload.result;
+
+    return items.map((p: any) => ({ vacina: String(p.vacina || p.nome || ""), total_doses: Number(p.total_doses || p.qtde || 0) }));
   }
 }
 
