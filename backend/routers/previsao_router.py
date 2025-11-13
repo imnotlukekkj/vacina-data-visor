@@ -4,6 +4,9 @@ from fastapi import HTTPException
 from typing import Optional, Any, Dict, List
 import os
 import re
+import json
+from pathlib import Path
+import httpx
 from ..utils.env_utils import ensure_loaded_backend_env
 from ..normalizer import get_default_normalizer
 from ..repositories.supabase_repo import (
@@ -28,34 +31,260 @@ router = APIRouter()
 # the frontend and backend are migrated to a single routing strategy.
 
 
+def _load_local_data() -> List[Dict[str, Any]]:
+    # prefer rerun2, then rerun; older filenames were removed to avoid confusion
+    base = Path(__file__).resolve().parents[1]
+    candidates = ["normalized_vacinas_rerun2.json", "normalized_vacinas_rerun.json"]
+    for c in candidates:
+        p = base / c
+        if p.exists():
+            with p.open("r", encoding="utf-8") as f:
+                return json.load(f)
+    return []
+
+
+async def _fetch_rows_from_supabase(table: str, filters: Dict[str, Optional[str]]) -> List[Dict[str, Any]]:
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        return []
+
+    base = SUPABASE_URL.rstrip("/")
+    url = f"{base}/rest/v1/{table}"
+    params: Dict[str, str] = {}
+    params["select"] = "TX_SIGLA,TX_INSUMO,ANO,MES,QTDE"
+    if filters.get("ano"):
+        params["ANO"] = f"eq.{filters.get('ano')}"
+    if filters.get("mes"):
+        params["MES"] = f"eq.{filters.get('mes')}"
+    if filters.get("uf"):
+        params["TX_SIGLA"] = f"ilike.*{filters.get('uf')}*"
+    if filters.get("fabricante"):
+        params["TX_INSUMO"] = f"ilike.*{filters.get('fabricante')}*"
+
+    headers = {
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+        "Accept": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(url, params=params, headers=headers)
+        if resp.status_code != 200:
+            print(f"Supabase request failed: {resp.status_code} {resp.text}")
+            return []
+        data = resp.json()
+    except Exception:
+        return []
+
+    result: List[Dict[str, Any]] = []
+    for r in data:
+        result.append({
+            "TX_SIGLA": r.get("TX_SIGLA"),
+            "TX_INSUMO": r.get("TX_INSUMO"),
+            "ANO": r.get("ANO"),
+            "MES": r.get("MES"),
+            "QTDE": r.get("QTDE"),
+        })
+    return result
+
+
+async def _fetch_rows(table: str, filters: Dict[str, Optional[str]]) -> List[Dict[str, Any]]:
+    # Prefer Supabase REST when available, otherwise fallback to local JSON files
+    rows = await _fetch_rows_from_supabase(table, filters)
+    if rows:
+        return rows
+    return _load_local_data()
+
+
 @router.get("/api/overview")
-async def api_overview_stub():
-    # Minimal successful response so the frontend can render initial state.
-    return JSONResponse(status_code=200, content={})
+async def api_overview(ano: Optional[str] = Query(None), mes: Optional[str] = Query(None), uf: Optional[str] = Query(None), fabricante: Optional[str] = Query(None)):
+    table = os.getenv("DATA_TABLE", "distribuicao")
+    # When frontend sends a normalized fabricante name (e.g. 'Covid-19') the raw
+    # TX_INSUMO values in the DB may not contain that exact substring (they
+    # might contain 'SARS-COV2 - ...' or manufacturer names). To avoid missing
+    # results at the DB layer we fetch rows without the raw TX_INSUMO filter and
+    # apply normalization-based filtering in Python below.
+    db_filters: Dict[str, Optional[str]] = {"ano": ano, "mes": mes, "uf": uf, "fabricante": None}
+    rows = await _fetch_rows(table, db_filters)
+    normalizer = get_default_normalizer()
+    for r in rows:
+        r.setdefault("tx_insumo_norm", normalizer.normalize_insumo(r.get("TX_INSUMO")))
+        r.setdefault("tx_sigla_norm", normalizer.normalize_sigla(r.get("TX_SIGLA")))
+
+    def row_matches(r):
+        if ano and str(r.get("ANO")) != str(ano):
+            return False
+        if mes and str(r.get("MES")).zfill(2) != str(mes).zfill(2):
+            return False
+        if uf and (r.get("tx_sigla_norm") != uf):
+            return False
+        if fabricante and (r.get("tx_insumo_norm") != fabricante):
+            return False
+        return True
+
+    matched = [r for r in rows if row_matches(r)]
+    total = sum(int(r.get("QTDE") or 0) for r in matched)
+    periodo = None
+    return JSONResponse(status_code=200, content={"total_doses": total, "periodo": periodo})
 
 
 @router.get("/api/timeseries")
-async def api_timeseries_stub():
-    # Return empty array by default; frontend will treat as no-data.
-    return JSONResponse(status_code=200, content=[])
+async def api_timeseries(ano: Optional[str] = Query(None), mes: Optional[str] = Query(None), uf: Optional[str] = Query(None), fabricante: Optional[str] = Query(None)):
+    table = os.getenv("DATA_TABLE", "distribuicao")
+    # See comment above in api_overview: avoid passing fabricante to DB filters
+    # so normalization can be applied reliably in Python.
+    table = os.getenv("DATA_TABLE", "distribuicao")
+    rows = await _fetch_rows(table, {"ano": ano, "mes": mes, "uf": uf, "fabricante": None})
+    normalizer = get_default_normalizer()
+    for r in rows:
+        r.setdefault("tx_insumo_norm", normalizer.normalize_insumo(r.get("TX_INSUMO")))
+        r.setdefault("tx_sigla_norm", normalizer.normalize_sigla(r.get("TX_SIGLA")))
+
+    def row_matches(r):
+        if uf and (r.get("tx_sigla_norm") != uf):
+            return False
+        if fabricante and (r.get("tx_insumo_norm") != fabricante):
+            return False
+        return True
+
+    matched = [r for r in rows if row_matches(r)]
+    buckets: Dict[str, int] = {}
+    for r in matched:
+        ano_val = int(r.get('ANO') or 0)
+        mes_val = int(r.get('MES') or 0)
+        key = f"{ano_val:04d}-{mes_val:02d}"
+        buckets.setdefault(key, 0)
+        buckets[key] += int(r.get("QTDE") or 0)
+
+    result = [{"data": k, "doses_distribuidas": v} for k, v in sorted(buckets.items())]
+    return JSONResponse(status_code=200, content=result)
 
 
 @router.get("/api/ranking/ufs")
-async def api_ranking_ufs_stub():
-    # Return empty ranking by default.
-    return JSONResponse(status_code=200, content=[])
+async def api_ranking_ufs(ano: Optional[str] = Query(None), mes: Optional[str] = Query(None), fabricante: Optional[str] = Query(None)):
+    table = os.getenv("DATA_TABLE", "distribuicao")
+    # Avoid pre-filtering by TX_INSUMO at the DB level; normalize then filter
+    # in-memory to catch pattern-based matches (e.g. SARS-COV2 -> Covid-19)
+    table = os.getenv("DATA_TABLE", "distribuicao")
+    rows = await _fetch_rows(table, {"ano": ano, "mes": mes, "fabricante": None})
+    normalizer = get_default_normalizer()
+    for r in rows:
+        r.setdefault("tx_insumo_norm", normalizer.normalize_insumo(r.get("TX_INSUMO")))
+        r.setdefault("tx_sigla_norm", normalizer.normalize_sigla(r.get("TX_SIGLA")))
+
+    def row_matches(r):
+        if ano and str(r.get("ANO")) != str(ano):
+            return False
+        if mes and str(r.get("MES")).zfill(2) != str(mes).zfill(2):
+            return False
+        if fabricante and (r.get("tx_insumo_norm") != fabricante):
+            return False
+        return True
+
+    matched = [r for r in rows if row_matches(r)]
+    buckets: Dict[str, int] = {}
+    for r in matched:
+        ufv = str(r.get("tx_sigla_norm") or r.get("TX_SIGLA") or "UNK")
+        buckets.setdefault(ufv, 0)
+        buckets[ufv] += int(r.get("QTDE") or 0)
+
+    res = [{"uf": k, "sigla": k, "doses_distribuidas": v} for k, v in sorted(buckets.items(), key=lambda x: -x[1])]
+    return JSONResponse(status_code=200, content=res)
 
 
 @router.get("/api/forecast")
-async def api_forecast_stub():
-    # Forecast endpoint placeholder.
-    return JSONResponse(status_code=200, content=[])
+async def api_forecast(ano: Optional[str] = Query(None), mes: Optional[str] = Query(None), uf: Optional[str] = Query(None), fabricante: Optional[str] = Query(None)):
+    # Behavior: if no filters provided, return empty list
+    if not any([ano, mes, uf, fabricante]):
+        return JSONResponse(status_code=200, content=[])
+
+    fetch_filters = {}
+    if mes:
+        fetch_filters["mes"] = mes
+    if uf:
+        fetch_filters["uf"] = uf
+    if fabricante:
+        fetch_filters["fabricante"] = fabricante
+
+    # For ano-based forecast we want multi-year data, so do not include ano in fetch
+    # Avoid filtering by fabricante/insumo at DB call; normalization-based
+    # filtering will be applied below to support pattern matches.
+    rows = await _fetch_rows(os.getenv("DATA_TABLE", "distribuicao"), {k: v for k, v in fetch_filters.items() if k != "fabricante"})
+    normalizer = get_default_normalizer()
+    for r in rows:
+        r.setdefault("tx_insumo_norm", normalizer.normalize_insumo(r.get("TX_INSUMO")))
+        r.setdefault("tx_sigla_norm", normalizer.normalize_sigla(r.get("TX_SIGLA")))
+
+    uf_norm = normalizer.normalize_sigla(uf) if uf else None
+    fabricante_norm = normalizer.normalize_insumo(fabricante) if fabricante else None
+
+    def row_matches(r):
+        if uf:
+            if uf_norm:
+                if (r.get("tx_sigla_norm") != uf_norm):
+                    return False
+            else:
+                if not r.get("TX_SIGLA") or uf.lower() not in r.get("TX_SIGLA", "").lower():
+                    return False
+        if fabricante:
+            if fabricante_norm:
+                if (r.get("tx_insumo_norm") != fabricante_norm):
+                    return False
+            else:
+                if not r.get("TX_INSUMO") or fabricante.lower() not in r.get("TX_INSUMO", "").lower():
+                    return False
+        return True
+
+    filtered = [r for r in rows if row_matches(r)]
+    # If mes provided, compute monthly average across years for that month, else annual totals median
+    if mes:
+        # group by year for the specific month
+        vals = []
+        for r in filtered:
+            if int(r.get("MES") or 0) == int(mes):
+                try:
+                    vals.append(float(r.get("QTDE") or 0))
+                except Exception:
+                    continue
+        if not vals:
+            return JSONResponse(status_code=200, content=[])
+        avg = sum(vals) / len(vals)
+        return JSONResponse(status_code=200, content=[{"data": f"2025-{int(mes):02d}", "doses_previstas": avg}])
+    else:
+        # annual totals across years
+        totals_by_year: Dict[int, float] = {}
+        for r in filtered:
+            y = int(r.get("ANO") or 0)
+            totals_by_year.setdefault(y, 0.0)
+            try:
+                totals_by_year[y] += float(r.get("QTDE") or 0)
+            except Exception:
+                continue
+        if not totals_by_year:
+            return JSONResponse(status_code=200, content=[])
+        # simple projection: average of annual totals
+        years = sorted(totals_by_year.keys())
+        avg = sum(totals_by_year[y] for y in years) / len(years)
+        return JSONResponse(status_code=200, content=[{"data": "2025", "doses_previstas": avg}])
 
 
 @router.get("/api/mappings")
-async def api_mappings_stub():
-    # Mappings placeholder; return empty set of vacinas.
-    return JSONResponse(status_code=200, content={"vacinas": []})
+async def api_mappings():
+    normalizer = get_default_normalizer()
+    items = [m.get("vacina_normalizada") for m in normalizer.mappings]
+    seen = set()
+    uniq = []
+    for it in items:
+        if not it:
+            continue
+        if it in seen:
+            continue
+        seen.add(it)
+        uniq.append(it)
+    uniq.sort()
+    return JSONResponse(status_code=200, content={"vacinas": uniq})
 
 
 def _find_insumo_pattern(normalizer, insumo_norm: Optional[str], original: str) -> Optional[str]:
@@ -388,3 +617,16 @@ async def previsao_comparacao(
         return JSONResponse(status_code=200, content=validated.dict())
     except Exception:
         return JSONResponse(status_code=200, content=resp_payload)
+
+
+# Backwards-compatible alias: frontend expects /api/previsao/comparacao
+@router.get("/api/previsao/comparacao")
+async def api_previsao_comparacao(
+    insumo_nome: Optional[str] = Query(None),
+    uf: Optional[str] = Query(None),
+    mes: Optional[int] = Query(None),
+    ano: Optional[int] = Query(None),
+    debug: Optional[bool] = Query(False),
+) -> Any:
+    # Delegate to the main implementation so logic stays in one place.
+    return await previsao_comparacao(insumo_nome=insumo_nome, uf=uf, mes=mes, ano=ano, debug=debug)
