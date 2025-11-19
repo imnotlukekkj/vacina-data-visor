@@ -1,255 +1,80 @@
-# 🩺 Vacina Brasil - Dashboard Nacional de Distribuição de Vacinas
+﻿#  Vacina Brasil  Dashboard Nacional de Distribuição de Vacinas
 
-Dashboard interativo e responsivo para visualização e análise de dados oficiais de distribuição e aplicação de vacinas em todo o território nacional.
+Aplicação para visualização e análise de dados públicos sobre distribuição de vacinas no Brasil. O repositório contém o frontend (React + TypeScript) e um backend protótipo em FastAPI usado como fonte de dados e para normalização.
 
-## 📋 Sobre o Projeto
+## Visão rápida
+- Interface com KPIs, séries temporais e mapa do Brasil por UF.
+- Filtros dinâmicos: ano, mês, UF e vacina/insumo.
+- Previsões simples (heurísticas) para 2025 quando aplicável.
 
-Este projeto acadêmico oferece uma interface moderna para acompanhamento em tempo real da campanha de vacinação nacional, com:
+## Stack e bibliotecas principais
+- Frontend: React 18 + TypeScript (Vite)
+- UI: TailwindCSS + shadcn/ui
+- Estado: Zustand
+- Visualização: Recharts (gráficos) + react-simple-maps (mapa)
+- Backend: FastAPI (Python)
 
-- **KPIs em tempo real**: Doses distribuídas, aplicadas, estoque e taxa de aplicação
-- **Série temporal interativa**: Evolução das doses ao longo do tempo
-- **Mapa do Brasil**: Visualização geográfica por UF
--- **Filtros dinâmicos**: Ano, mês, UF e fabricante/vacina
-- **Design responsivo**: Funciona perfeitamente em desktop, tablet e mobile
+## Como as previsões funcionam (resumo)
+- Fonte de dados: o backend lê dados brutos (via Supabase REST/RPC quando configurado) ou usa arquivos JSON locais como fallback no desenvolvimento.
+- `GET /api/timeseries`: retorna séries agregadas por `ano`+`mes` no formato `{ data: "YYYY-MM", doses_distribuidas: number }`.
+- `GET /api/forecast`:
+  - Se o filtro incluir `mes`, a projeção é calculada como a média histórica simples daquele mês (por exemplo, média dos meses `MM` entre os anos disponíveis) e é retornada para `2025-MM`.
+  - Se não houver `mes`, a projeção anual é a média aritmética dos totais anuais disponíveis e usada como estimativa para 2025.
+  - Endpoints como `/previsao` e `/previsao/comparacao` podem delegar a funções RPC no banco; o backend valida e aplica fallbacks (mediana, média recente) quando necessário.
 
-## 🚀 Stack Tecnológica
-
-- **Frontend**: React 18 + TypeScript + Vite
-- **UI**: TailwindCSS + shadcn/ui
-- **Gerenciamento de Estado**: Zustand
-- **Visualização de Dados**: Recharts + react-simple-maps
-- **Animações**: Framer Motion
-- **Backend**: FastAPI (integração via REST API)
-
-## 📦 Instalação
-
-```bash
-# Clone o repositório
-git clone <seu-repositorio>
-cd <nome-do-projeto>
-
-# Instale as dependências
-npm install
-
-# Configure as variáveis de ambiente
-cp .env.example .env
-# Edite o arquivo .env e configure VITE_BASE_API_URL
-```
-
-## ⚙️ Configuração do Backend
-
-O dashboard consome dados de uma API FastAPI. Configure a URL base no arquivo `.env`:
-
-```env
-VITE_BASE_API_URL=http://localhost:8000
-```
-
-### Endpoints Esperados
-
-O backend deve expor os seguintes endpoints:
-
-#### 1. GET `/overview`
-Retorna KPIs agregados.
-
-**Query Params**: `ano`, `mes`, `uf`, `fabricante` (todos opcionais)
-
-**Resposta esperada**:
-```json
-{
-	"total_doses": 1000000,
-	"total_aplicadas": 850000,
-	"total_estoque": 150000,
-	"taxa_aplicacao": 85.0,
-	"periodo": "2024-01"
-}
-```
-
-#### 2. GET `/timeseries`
-Retorna série temporal de distribuição.
-
-**Query Params**: `ano`, `mes`, `uf`, `fabricante` (todos opcionais)
-
-**Resposta esperada**:
-```json
-[
-	{
-		"data": "2024-01-01",
-		"doses_distribuidas": 100000,
-		"doses_aplicadas": 85000,
-		"doses_estoque": 15000
-	},
-	...
-]
-```
-
-#### 3. GET `/ranking/ufs`
-Retorna dados agregados por UF.
-
-**Query Params**: `ano`, `mes`, `uf`, `fabricante` (todos opcionais)
-
-**Resposta esperada**:
-```json
-[
-	{
-		"uf": "São Paulo",
-		"sigla": "SP",
-		"doses_distribuidas": 500000,
-		"doses_aplicadas": 450000,
-		"doses_estoque": 50000,
-		"taxa_aplicacao": 90.0
-	},
-	...
-]
-```
-
-### Importante: Conversão de Parâmetros
-
-O frontend exibe o filtro como **"Vacina"** (para facilitar a seleção do tipo de vacina), mas envia o valor como **"fabricante"** para a API. Esta conversão é feita automaticamente no cliente.
-
-## 🏃 Executando o Projeto
-
-```bash
-# Modo desenvolvimento
-npm run dev
-
-# Build para produção
-npm run build
-
-# Preview da build
-npm start
-```
-
-O aplicativo estará disponível em `http://localhost:8080`
+## Executando localmente
 
 ### Windows (PowerShell)
-
-Se você estiver em um ambiente Windows com PowerShell, há um script auxiliar `run_dev.ps1` que inicia o backend e o frontend juntos. Se a política de execução do PowerShell impedir a execução do script, pode temporariamente permitir com:
-
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\run_dev.ps1
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn app:app --reload --port 8000
+
+# em outro terminal, no diretório raiz:
+cd ..
+npm install
+npm run dev
 ```
 
-O script criará (se necessário) um virtualenv em `.venv`, instalará as dependências Python do backend, iniciará o servidor FastAPI (uvicorn) em background, criará um `.env.local` apontando para `http://localhost:8000` e executará `npm run dev`.
-
-## Python runtime (backend)
-
-O backend é um projeto Python (FastAPI) e deve ser executado com uma versão estável do Python 3.11.
-Recomendamos criar um virtualenv com Python 3.11 (por exemplo `backend/.venv311`) e executar o servidor como módulo para garantir que os imports relativos funcionem corretamente:
-
-```powershell
-# criar venv com Python 3.11 (Windows PowerShell)
-py -3.11 -m venv backend\.venv311
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\backend\.venv311\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r backend\requirements.txt
+### Linux / macOS
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
 python -m uvicorn backend.app:app --reload --port 8000
+
+# em outro terminal
+npm install
+npm run dev
 ```
 
-Para deploy em plataformas como Render, adicione (ou garanta) que o runtime esteja definido como Python 3.11 (veja `runtime.txt` no repositório). Isso evita incompatibilidades com bibliotecas como `httpx`/`httpcore` em versões mais novas do Python.
+## Script helper
+- Há um `run_dev.ps1` para facilitar o desenvolvimento em Windows (inicia frontend + backend). Verifique a política de execução do PowerShell antes de rodar.
 
-## 📁 Estrutura do Projeto
+## Endpoints úteis (resumo)
+- `GET /api/overview`  `{ total_doses: number, periodo?: string }`
+- `GET /api/timeseries`  `[{ data: "YYYY-MM", doses_distribuidas: number }, ...]`
+- `GET /api/ranking/ufs`  lista `{ uf, sigla, doses_distribuidas }` ordenada
+- `GET /api/forecast`  previsão simplificada (ver seção acima)
+- `GET /previsao` e `/previsao/comparacao`  endpoints que podem exigir parâmetros e delegam a RPCs no banco
 
-```
-src/
-├── components/
-│   └── dashboard/
-│       ├── FilterSection.tsx    # Filtros do dashboard
-│       ├── KPICards.tsx         # Cards de indicadores
-│       ├── TimeseriesChart.tsx  # Gráfico de série temporal
-│       └── BrazilMap.tsx        # Mapa interativo do Brasil
-├── lib/
-│   └── api.ts                   # Cliente da API
-├── pages/
-│   ├── Landing.tsx              # Página inicial
-│   ├── Dashboard.tsx            # Dashboard principal
-│   └── About.tsx                # Página sobre
-├── stores/
-│   └── filterStore.ts           # Store Zustand para filtros
-└── index.css                    # Design system
-```
+## Notas operacionais e recomendações
+- Não versionar ambientes virtuais (`.venv`)  adicione-os ao `.gitignore`.
+- Recomenda-se Python 3.11 para compatibilidade com dependências.
+- A `SUPABASE_SERVICE_ROLE_KEY` é sensível  nunca a exponha no frontend.
+- Para produção, recomenda-se persistir `tx_insumo_norm` no banco e indexar as colunas de busca para melhor desempenho.
 
-## 🎨 Design System
+## Desenvolvimento e qualidade
+- Rode `npm run lint` e `npm run build` antes de abrir PRs.
+- Tests: ainda não há uma suíte de testes automatizada; posso ajudar a adicionar testes unitários para o normalizador e para rotas do backend.
 
-O projeto utiliza um design system baseado em tokens semânticos:
+## Mais detalhes do backend
+- Veja `backend/README.md` para explicações técnicas adicionais, exemplos de RPC e comportamento de fallback.
 
-- **Primário (Verde)**: `hsl(158 64% 52%)` - Representa saúde
-- **Secundário (Azul)**: `hsl(217 91% 60%)` - Representa confiança institucional
-- **Gradientes**: Definidos em CSS variables para consistência
-- **Sombras**: Sistema de elevação com múltiplos níveis
-- **Animações**: Transições suaves com Framer Motion
+## Contribuição
+- Faça fork  branch  PR. Use mensagens de commit em português e descreva claramente as mudanças.
 
-## 🔄 Sincronização de Filtros
-
-Os filtros do dashboard são:
-- Sincronizados com a URL via query params
-- Persistidos no estado global com Zustand
-- Atualizados em tempo real em todos os componentes
-
-Exemplo de URL: `/dashboard?ano=2024&mes=01&uf=SP&vacina=Pfizer` (o frontend agora envia `vacina`; o backend ainda aceita `fabricante` como parâmetro para compatibilidade)
-
-## 🧪 Desenvolvimento
-
-### Lint
-```bash
-npm run lint
-```
-
-### Type Check
-```bash
-npm run type-check
-```
-
-## 📊 Funcionalidades Implementadas
-
-- ✅ Landing page animada com CTA
-- ✅ Dashboard com filtros dinâmicos
-- ✅ KPIs em cards responsivos
-- ✅ Série temporal com Recharts
-- ✅ Mapa do Brasil com react-simple-maps
-- ✅ Estados de loading, erro e vazio
-- ✅ Sincronização URL ↔ Estado
-- ✅ Design responsivo e acessível
-- ✅ Página sobre o projeto
-- ✅ SEO otimizado
-
-## 🌐 Deploy
-
-O projeto está pronto para deploy em plataformas como:
-- Vercel
-- Netlify
-- GitHub Pages
-- Lovable (recomendado)
-
-Certifique-se de configurar a variável `VITE_BASE_API_URL` no ambiente de produção.
-
-## 📝 Licença
-
-Projeto acadêmico desenvolvido para fins educacionais.
-
-## 👥 Autores
-
-Desenvolvido como trabalho acadêmico.
-
-## 🔗 Links Úteis
-
-- [OpenDataSUS](https://opendatasus.saude.gov.br/)
-- [Ministério da Saúde](https://www.gov.br/saude/pt-br)
-- [React](https://react.dev/)
-- [shadcn/ui](https://ui.shadcn.com/)
-- [Recharts](https://recharts.org/)
-
-## Nota sobre Projeção Nacional Total
-
-Quando o usuário solicita a comparação no modo "Totais Nacionais" (sem especificar um
-`insumo_nome`), o backend utiliza um fallback estatístico estável para calcular a
-projeção do ano seguinte. Em caso de falha ou indisponibilidade da função RPC de
-projeção, o sistema calcula a **Mediana Aritmética** dos totais anuais agregados
-para os anos de 2020 a 2024 e usa esse valor como a quantidade projetada para 2025.
-
-Essa abordagem foi escolhida por sua robustez contra outliers e instabilidades na
-regressão linear quando aplicada aos totais agregados.
-
-````
-
+## Precisa de exemplos ou diagrama?
+- Posso adicionar exemplos `curl` para cada rota, ou um pequeno diagrama do fluxo de dados (Supabase  backend  normalizer  frontend). Diga o que prefere e eu adiciono.

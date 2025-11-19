@@ -1,77 +1,51 @@
-# Backend helpers — mapeamento TX_INSUMO → vacina_normalizada
+# Backend - Vacina Brasil
 
-Arquivos criados:
+Este diretório contém a API que fornece os dados usados pelo frontend. O backend processa dados públicos, normaliza e expõe endpoints REST para consumo.
 
+O que faz o backend
+- Carrega e normaliza dados de distribuição de vacinas.
+- Expõe endpoints para: overview (KPIs), séries temporais, ranking por UF, previsões/projeções e comparações.
+- Calcula projeções (2025) usando séries históricas e retorna intervalos de confiança quando disponíveis.
 
-Como usar (PowerShell):
-
+Como rodar localmente (Windows - PowerShell)
 ```powershell
-# Normalizar um arquivo data.json e gravar em um arquivo de saída escolhido
-python backend/etl_normalize.py --input data.json --output <output.json>
-
-# Para aplicar no banco (Supabase/Postgres):
-# 1) Rode `insumo_mappings_seed.sql` contra seu banco (psql ou via Supabase SQL Editor).
-# 2) Use o script ETL para popular a coluna `tx_insumo_norm` ou executar atualizações via SQL
-#    (ex.: UPDATE distribuicao SET tx_insumo_norm = '...' WHERE tx_insumo ILIKE '%...%')
-```
-
-Observações:
-  você provavelmente precisará ajustar `mappings.json` (novos padrões ou prioridades).
-# Backend — visão geral e referência
-
-Este diretório contém o protótipo do backend em Python (FastAPI) usado pelo projeto. O foco principal é
-fornecer normalização on-the-fly para os campos `TX_INSUMO` e `TX_SIGLA` usando regras em `backend/mappings.json`.
-
-Conteúdo e arquivos principais
-
-- `app.py` — servidor FastAPI com endpoints públicos e lógica de fallback (DB → Supabase REST → JSON local).
-- `normalizer.py` — carrega `backend/mappings.json` e expõe métodos para normalizar insumo e sigla.
-- `mappings.json` — padrões (regex) usados para mapear `TX_INSUMO` → `vacina_normalizada`.
-- `etl_normalize.py` — script utilitário para normalização em lote (ETL offline).
-- `repositories/`, `routers/`, `schemas/`, `utils/` — organização por camadas (dados, rotas, schemas, utilitários).
-
-Principais endpoints (resumo)
-
-- `GET /normalize?tx_insumo=...&tx_sigla=...` — normaliza um único registro e retorna `tx_insumo_norm` / `tx_sigla_norm`.
-- `GET /overview` — agregações (usa DB ou fallback local).
-- `GET /timeseries` — série temporal (DB ou fallback local).
-- `GET /ranking/ufs` — ranking por UF (DB ou fallback local).
-- `GET /api/previsao` — rota específica que retorna histórico + previsão (veja seção "Previsão / RPC" abaixo).
-
-Como rodar localmente
-
-PowerShell (Windows):
-
-```powershell
-# criar e ativar venv (opcional)
+cd backend
 python -m venv .venv
-.\\.venv\\Scripts\\Activate.ps1
-
-# instalar dependências
-pip install -r backend/requirements.txt
-
-# rodar o servidor (exemplo)
-python -m uvicorn backend.app:app --reload --port 8000
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn services.main:app --reload --port 8000
 ```
 
-Recomendação de runtime
------------------------
+Variáveis de ambiente
+- O backend pode depender de variáveis (ex.: chaves de API, URL de banco). Confira `backend/env_utils.py` e configure conforme necessário.
 
-Para evitar incompatibilidades com bibliotecas (por exemplo `httpx`/`httpcore`) e garantir comportamento consistente entre ambientes, recomendamos usar Python 3.11 para o backend. Você pode criar um virtualenv específico nomeado `.venv311` como no exemplo abaixo:
+## Backend - visão precisa
 
+O backend fornece endpoints REST usados pelo frontend e implementa lógica de normalização e alguns cálculos de previsão. Abaixo estão os detalhes corretos e atualizados sobre comportamento e opções de execução.
+
+Comportamento real dos endpoints (resumo)
+- `GET /api/overview`: retorna um objeto simples com `total_doses` e `periodo` (não expõe, por padrão, métricas derivadas como doses aplicadas ou estoque).
+- `GET /api/timeseries`: agrega as linhas por `ANO`+`MES` e retorna `[{ data: "YYYY-MM", doses_distribuidas: number }, ...]`.
+- `GET /api/ranking/ufs`: agrega por UF e retorna `{ uf, sigla, doses_distribuidas }` ordenado por total.
+- `GET /api/forecast`: faz previsões simples com base em médias históricas (média mensal quando `mes` informado; média anual quando não há `mes`).
+- `/previsao` e `/previsao/comparacao` (e `/api/previsao/comparacao`): chamam RPCs no banco (Supabase) para obter histórico + projeção quando disponíveis; o backend aplica heurísticas e fallbacks caso a RPC retorne dados inconsistentes.
+
+Fontes de dados e normalização
+- O backend tenta obter dados via Supabase REST/RPC quando as variáveis `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` estão configuradas.
+- Em ausência do Supabase, há fallback para arquivos JSON locais (fixtures) para permitir desenvolvimento offline.
+- O `normalizer` (arquivo `backend/normalizer.py` e `mappings.json`) mapeia nomes brutos de insumos (`TX_INSUMO`) para nomes normalizados, ajudando a reconciliar variações de texto.
+
+Como rodar (exemplos)
+PowerShell (Windows):
 ```powershell
-py -3.11 -m venv backend\.venv311
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\backend\.venv311\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-pip install -r backend\requirements.txt
-python -m uvicorn backend.app:app --reload --port 8000
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn app:app --reload --port 8000
 ```
-
-No deploy (Render/Heroku/Outros), assegure que o runtime esteja configurado para Python 3.11 (veja `runtime.txt` na raiz do repositório).
 
 Bash / macOS / Linux:
-
 ```bash
 python -m venv .venv
 source .venv/bin/activate
@@ -79,76 +53,20 @@ pip install -r backend/requirements.txt
 python -m uvicorn backend.app:app --reload --port 8000
 ```
 
-Configuração e fallback de dados
+Variáveis de ambiente importantes
+- `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` — habilitam uso do Supabase (REST e RPC).
+- `DATA_TABLE` / `RAW_DATA_TABLE` — nomes de tabela usados na leitura.
 
-O backend tenta, nesta ordem, obter dados reais:
-1. Conexão direta ao Postgres via `DATABASE_URL` (asyncpg)
-2. PostgREST do Supabase via `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (HTTP)
-3. Arquivos JSON locais dentro de `backend/` (fallback)
+Notas operacionais
+- Evite versionar `.venv` no repositório; adicione-o ao `.gitignore` se necessário.
+- A `SERVICE_ROLE` do Supabase tem privilégios elevados: mantenha-a apenas no servidor/back-end e nunca no frontend ou em repositórios públicos.
 
-Para usar o modo Supabase REST, exporte (NUNCA compartilhe a service role key publicamente):
+Sobre previsões e comparações (detalhe técnico)
+- `GET /api/forecast` usa médias simples:
+  - com `mes`: média simples dos valores daquele mês ao longo dos anos disponíveis (retorna um ponto para `2025-MM`).
+  - sem `mes`: média aritmética dos totais anuais para projeção de `2025`.
+- `/previsao` e `/previsao/comparacao` chamam RPCs no banco e podem retornar estruturas mais ricas (histórico + previsão). O backend valida e aplica heurísticas:
+  - se o RPC retornar somente um ponto isolado (por exemplo apenas uma previsão com quantidade zero), o backend trata como "sem dados" e retorna 404/erro apropriado para evitar gráficos enganosos;
+  - se a projeção recebida for muito divergente do histórico, o backend tenta um fallback (ex.: média dos últimos anos ou mediana de totais) antes de responder.
 
-```bash
-export SUPABASE_URL="https://<your-project>.supabase.co"
-export SUPABASE_SERVICE_ROLE_KEY="<service_role_key>"
-export DATA_TABLE=distribuicao
-```
-
-Observações de segurança: a `SERVICE_ROLE` tem privilégios elevados — guarde-a apenas no servidor.
-
-ETL (normalização offline)
-
-Use `backend/etl_normalize.py` para aplicar os mapeamentos a um arquivo JSON local e gerar um arquivo de saída qualquer:
-
-```powershell
-python backend/etl_normalize.py --input data.json --output out_normalized.json
-```
-
-Documentação sobre previsão / RPC (resumo)
-
-O endpoint `/api/previsao` chama a função Postgres `public.obter_historico_e_previsao_vacinacao` e espera receber uma
-lista de objetos JSON com elementos no formato:
-
-```json
-{ "ano": 2020, "quantidade": 12345, "tipo_dado": "historico" }
-```
-
-Regras esperadas da função RPC:
-- Retornar linhas agregadas por `ANO` (2020–2024) com `tipo_dado = 'historico'`.
-- Retornar uma linha `tipo_dado = 'previsao'` para 2025 (por exemplo, média dos anos anteriores) quando aplicável.
-
-Exemplo de chamada RPC via PostgREST (teste):
-
-```bash
-export $(grep -v '^#' backend/.env | xargs)
-curl -s -X POST "$SUPABASE_URL/rest/v1/rpc/obter_historico_e_previsao_vacinacao" \
-  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
-  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"_insumo_nome":"Covid-19","_uf":"PR","_mes":10}' | jq
-```
-
-Notas sobre arquivos `normalized.json` e `normalized_vacinas.json`
-
-Estes arquivos antigos foram removidos do fluxo ativo para evitar confusão: o `app.py` agora prefere arquivos mais explícitos
-(`normalized_vacinas_rerun2.json`, `normalized_vacinas_rerun.json`) como candidates locais. Caso precise de backups dos arquivos
-anteriores, crie uma pasta `backend/archive/` e armazene-os lá.
-
-Práticas recomendadas para produção
-
-- Persistir `tx_insumo_norm` e `tx_sigla_norm` no banco e indexar as colunas para consultas rápidas.
-- Mover `mappings.json` para uma tabela `insumo_mappings` e expor um endpoint administrativo para atualizar padrões sem deploy.
-- Evitar exposição da `SUPABASE_SERVICE_ROLE_KEY` no frontend; sempre encapsular chamadas sensíveis no backend.
-
-Próximos passos sugeridos
-
-- Implementar endpoint de backfill que aplica a normalização em massa e grava no banco.
-- Adicionar testes unitários para `normalize_row` e para os wrappers do Supabase.
-- Remover artefatos ETL redundantes e manter um procedimento claro de backfill/seed.
-
------
-
-Se quiser, posso:
-- aplicar o backfill (script) — preciso das credenciais e da confirmação;
-- adicionar testes unitários e CI;
-- mover os arquivos antigos para `backend/archive/` e confirmar a remoção do repo.
+Se quiser que eu adicione exemplos `curl` para testar cada rota ou um diagrama simples do fluxo de dados (Supabase → normalizer → endpoints → frontend), eu atualizo esse README com os exemplos.
